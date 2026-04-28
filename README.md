@@ -11,6 +11,7 @@ This dashboard provides a macro scenario analysis workflow with:
 - investor-facing bucket tilts, long/short playbook, factor attribution, scenario stress map, and model diagnostics
 - automatic scenario probabilities, unknown/mixed regime detection, probability-weighted asset rankings, robustness, downside, regret, and fragility diagnostics
 - walk-forward optimizer validation versus SPY, 60/40, equal-weight, and risk-parity benchmarks, with ex-crypto and ex-commodities fragility checks
+- random-basket placebo distributions with percentile ranks and one-sided p-values for both the predicted-scenario basket and optimizer validation
 
 It will not reproduce any proprietary institutional output unless you have the same historical data, factor definitions, scenario presets, and weighting rules.
 The dashboard uses public monthly Yahoo/FRED proxy data. Treat the macro factors as transparent proxies and validate the proxy choices before using the outputs for capital allocation.
@@ -120,7 +121,7 @@ expected_return = beta dot scenario_vector
 
 ## Auto Regime Engine
 
-The automatic regime view does not choose the nicest portfolio. It first looks only at current macro factors, then assigns probabilities to the preset scenarios.
+The automatic regime view does not choose the nicest portfolio. It first looks only at current macro factors, then assigns model-implied weights to the preset scenarios. These weights are normalized model scores, not empirically calibrated market probabilities until validation evidence supports that interpretation.
 
 1. Build macro state features from the factor data:
    - latest standardized shock
@@ -129,10 +130,10 @@ The automatic regime view does not choose the nicest portfolio. It first looks o
    - acceleration
 2. Expand each scenario preset into the same feature space.
 3. Measure Mahalanobis distance from today's macro state to each scenario.
-4. Convert distances into soft probabilities.
+4. Convert distances into soft model-implied scenario weights.
 5. Add `Unknown / Mixed` probability when today's macro state is far from every preset.
 
-The probability-weighted ranking then blends asset expected returns across the scenario distribution:
+The probability-weighted ranking then blends asset expected returns across the model-implied scenario distribution:
 
 ```text
 weighted_expected_return(asset) =
@@ -155,15 +156,17 @@ The dashboard also reports:
 - `weighted_regret`: average distance from the best asset in each scenario.
 - `fragility_score`: high upside in one scenario combined with high dispersion or downside.
 - `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for multiple ranking rules, including robust score, weighted expected return, rank stability, fragility, and regret-adjusted variants.
+- `market_regime_calibration`: walk-forward calibration of scenario weights against realized investable market behavior. Each future month is assigned to the scenario whose asset-return template best matches realized cross-sectional returns, then the dashboard checks the probability assigned to that scenario.
 - `market_validation_status`: fail-closed dashboard gate that keeps rankings research-only unless the robust-score market-outcome test has enough history, a rank IC t-stat above 2.0, a positive top-minus-bottom spread, and at least a 55% positive-spread hit rate.
 - `optimizer_validation_status`: fail-closed dashboard gate that keeps the optimizer research-only unless the net walk-forward optimizer beats benchmark Sharpe, has positive information ratio versus 60/40, equal-weight, and risk-parity benchmarks, remains positive after removing crypto or commodities, and has at least 36 validation months. The deployed Streamlit view uses a shorter cloud-safe preview window until validation is precomputed offline.
+- `placebo_distribution`: 200 random long/short basket trials over the same rebalance dates, universe, basket size, and transaction-cost assumption. The dashboard reports strategy percentile and a one-sided p-value showing how often random baskets beat the strategy.
 
 ## Implemented improvement layers
 
 1. Data freshness and source transparency: keep the visible per-source update table, expose the latest completed data month, and refresh committed snapshots through the scheduled/manual GitHub Action.
-2. Probability and market-outcome calibration: walk-forward test scenario probabilities, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, hit-rate diagnostics, multiple score rules, and ex-crypto / ex-commodities variants.
+2. Probability and market-outcome calibration: walk-forward test scenario weights against realized investable market regimes, keep macro-label calibration as a secondary diagnostic, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, hit-rate diagnostics, multiple score rules, and ex-crypto / ex-commodities variants.
 3. Investment-readiness gating: expose ranking and optimizer validation status in the header and keep the dashboard in research-only mode when realized market evidence is weak.
 4. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
 5. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.
 6. Visualization and design quality: standardize colors, improve contrast, make positive/negative/unknown states visually consistent, tighten chart labels, round table values everywhere, and run desktop/mobile screenshot checks before relying on the dashboard.
-7. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, a candidate screen, downside-aware robust rankings, and walk-forward optimizer validation versus benchmark portfolios.
+7. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, a candidate screen, downside-aware robust rankings, walk-forward optimizer validation versus benchmark portfolios, and placebo distributions.

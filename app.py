@@ -22,6 +22,7 @@ from model import (
     scenario_overlay_breakdown,
     top_bottom_by_bucket,
     walk_forward_market_outcome_validation,
+    walk_forward_market_regime_calibration,
     walk_forward_optimizer_validation,
     walk_forward_scenario_calibration,
     walk_forward_predicted_scenario_portfolio,
@@ -33,9 +34,9 @@ CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 SOURCE_AUDIT_SCHEMA_VERSION = 2
-BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v6"
+BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v7_placebo"
 MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v2_score_rules"
-OPTIMIZER_VALIDATION_CACHE_VERSION = "optimizer_validation_v1"
+OPTIMIZER_VALIDATION_CACHE_VERSION = "optimizer_validation_v2_placebo"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -161,6 +162,26 @@ def build_scenario_matrices(prices: pd.DataFrame, factors: pd.DataFrame, univers
 @st.cache_data
 def build_calibration_report(factors: pd.DataFrame, scenarios: pd.DataFrame):
     return walk_forward_scenario_calibration(factors, scenarios, lookback=84, horizon=1, max_periods=96)
+
+
+@st.cache_data(show_spinner=False)
+def build_market_regime_calibration(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    half_life: float,
+):
+    return walk_forward_market_regime_calibration(
+        prices,
+        factors,
+        universe,
+        scenarios,
+        lookback=84,
+        half_life=half_life,
+        horizon=1,
+        max_periods=96,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -503,6 +524,60 @@ def optimizer_validation_summary(optimizer_backtest) -> dict:
     }
 
 
+def placebo_audit_table(backtest, strategy_label: str) -> pd.DataFrame:
+    placebo = getattr(backtest, "placebo_distribution", pd.DataFrame()).copy()
+    if placebo.empty or backtest.summary.empty:
+        return pd.DataFrame()
+    summary = backtest.summary.set_index("series")
+    if strategy_label not in summary.index:
+        return pd.DataFrame()
+
+    strategy = summary.loc[strategy_label]
+    strategy_ir = np.nan
+    if not backtest.benchmark_tear_sheet.empty and "SPY" in set(backtest.benchmark_tear_sheet["benchmark"]):
+        strategy_ir = float(
+            backtest.benchmark_tear_sheet.set_index("benchmark").loc["SPY", "information_ratio"]
+        )
+
+    actual_by_metric = {
+        "final_equity": float(strategy.get("final_equity", np.nan)),
+        "cagr_pct": float(strategy.get("cagr_pct", np.nan)),
+        "sharpe": float(strategy.get("sharpe", np.nan)),
+        "max_drawdown_pct": float(strategy.get("max_drawdown_pct", np.nan)),
+        "information_ratio_vs_spy": strategy_ir,
+    }
+    labels = {
+        "final_equity": "Final equity",
+        "cagr_pct": "CAGR %",
+        "sharpe": "Sharpe",
+        "max_drawdown_pct": "Max drawdown %",
+        "information_ratio_vs_spy": "Information ratio vs SPY",
+    }
+
+    rows = []
+    for metric, actual in actual_by_metric.items():
+        if metric not in placebo or not np.isfinite(actual):
+            continue
+        sample = pd.to_numeric(placebo[metric], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+        if sample.empty:
+            continue
+        # Higher is better for every metric shown here, including max drawdown because -5% is better than -20%.
+        percentile = float((sample <= actual).mean() * 100.0)
+        p_value = float(((sample >= actual).sum() + 1.0) / (len(sample) + 1.0))
+        rows.append(
+            {
+                "metric": labels[metric],
+                "strategy": actual,
+                "placebo_median": float(sample.median()),
+                "placebo_90th_pct": float(sample.quantile(0.90)),
+                "strategy_percentile": percentile,
+                "one_sided_p_value": p_value,
+                "placebo_trials": int(len(sample)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def data_freshness_table(refresh_info: dict, prices: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
     state = load_update_state()
     rows = [
@@ -826,6 +901,13 @@ auto_regime = estimate_scenario_probabilities(factors, scenarios)
 probability_rank = probability_weighted_asset_ranking(scenario_expected, auto_regime.probabilities, result.expected)
 overlay_breakdown = scenario_overlay_breakdown(auto_regime.probabilities, scenarios)
 calibration = build_calibration_report(factors, scenarios)
+market_regime_calibration = build_market_regime_calibration(
+    prices,
+    factors,
+    active_universe,
+    scenarios,
+    half_life=float(half_life),
+)
 market_outcome_validation = build_market_outcome_validation(
     prices,
     factors,
@@ -933,7 +1015,8 @@ c6.metric("Optimizer validation", str(optimizer_validation_status["label"]))
 
 st.info(scenario_summary_line(scenario))
 st.caption(
-    f"Selected manual scenario: {preset}. Auto-regime metrics and probability rankings are computed from the latest data and do not use the manual sidebar preset."
+    f"Selected manual scenario: {preset}. Auto-regime metrics and probability rankings are model-implied, computed from the latest data, "
+    "and do not use the manual sidebar preset."
 )
 
 tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
@@ -951,8 +1034,11 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
 )
 
 with tab0:
-    st.subheader("Automatic scenario probabilities")
-    st.caption("Computed from the latest macro state only, then transition-smoothed. Asset rankings do not influence these probabilities.")
+    st.subheader("Automatic model-implied scenario weights")
+    st.caption(
+        "Computed from the latest macro state only, then transition-smoothed. These weights are normalized model scores, "
+        "not empirically calibrated market probabilities until the validation gates pass. Asset rankings do not influence them."
+    )
     p_view = auto_probs.copy()
     p_view["probability_pct"] = p_view["probability"] * 100.0
     p_view["distance"] = p_view["normalized_distance"]
@@ -969,7 +1055,7 @@ with tab0:
     )
     fig.update_layout(
         yaxis={"categoryorder": "total ascending"},
-        xaxis_title="Probability",
+        xaxis_title="Model-implied probability",
         yaxis_title="",
         height=420,
     )
@@ -1006,7 +1092,7 @@ with tab0:
     )
 
     st.subheader("Core regimes and overlays")
-    st.caption("Preset probabilities are regrouped into core macro regime, policy/liquidity overlay, and stress overlay.")
+    st.caption("Model-implied preset weights are regrouped into core macro regime, policy/liquidity overlay, and stress overlay.")
     overlay_view = overlay_breakdown.copy()
     fig = px.bar(
         overlay_view,
@@ -1016,7 +1102,7 @@ with tab0:
         facet_col="layer",
         orientation="h",
         text=overlay_view["probability_pct"].map(lambda x: f"{x:.1f}%"),
-        labels={"probability_pct": "Probability", "state": ""},
+        labels={"probability_pct": "Model-implied probability", "state": ""},
         color_discrete_sequence=[COLORS["accent"], COLORS["positive"], COLORS["negative"]],
     )
     fig.update_yaxes(matches=None, showticklabels=True)
@@ -1110,7 +1196,9 @@ with tab1:
 
 with tab2:
     st.subheader("Probability-weighted robust ranking")
-    st.caption("Uses the automated scenario probability distribution above, not the manual sidebar scenario.")
+    st.caption(
+        "Uses the automated model-implied scenario weights above, not the manual sidebar scenario. Treat rankings as research-only unless the validation gates pass."
+    )
     rank_view = probability_rank.copy()
     fig = px.scatter(
         rank_view,
@@ -1211,7 +1299,9 @@ with tab2:
 
 with tab3:
     st.subheader("Probability-weighted optimized portfolio")
-    st.caption("Uses scenario probabilities, return dispersion, and the recent covariance matrix. This is a tilt optimizer, not an execution order.")
+    st.caption(
+        "Uses model-implied scenario weights, return dispersion, and the recent covariance matrix. This is a research tilt optimizer, not an execution order."
+    )
     if optimized_portfolio.weights.empty:
         st.warning("The optimizer could not build a portfolio from the available data.")
     else:
@@ -1426,6 +1516,55 @@ with tab3:
                     width="stretch",
                 )
 
+        opt_placebo = placebo_audit_table(opt_bt, "Optimized portfolio")
+        if not opt_placebo.empty:
+            st.markdown("**Random-basket placebo audit**")
+            st.caption(
+                "Random long/short baskets use the same rebalance dates, active universe, basket size, and transaction-cost assumption. "
+                "The one-sided p-value is the share of random baskets that beat the optimized portfolio; lower is better."
+            )
+            equity_row = opt_placebo[opt_placebo["metric"] == "Final equity"].iloc[0]
+            sharpe_row = opt_placebo[opt_placebo["metric"] == "Sharpe"].iloc[0]
+            pp1, pp2, pp3, pp4, pp5 = st.columns(5)
+            pp1.metric("Placebo trials", f"{int(equity_row['placebo_trials']):,}")
+            pp2.metric("Equity percentile", f"{equity_row['strategy_percentile']:.1f}%")
+            pp3.metric("Equity p-value", f"{equity_row['one_sided_p_value']:.3f}")
+            pp4.metric("Sharpe percentile", f"{sharpe_row['strategy_percentile']:.1f}%")
+            pp5.metric("Sharpe p-value", f"{sharpe_row['one_sided_p_value']:.3f}")
+
+            placebo_left, placebo_right = st.columns([1.0, 1.15])
+            with placebo_left:
+                st.dataframe(
+                    format_pct_columns(
+                        opt_placebo,
+                        [
+                            "strategy",
+                            "placebo_median",
+                            "placebo_90th_pct",
+                            "strategy_percentile",
+                            "one_sided_p_value",
+                        ],
+                    ),
+                    width="stretch",
+                )
+            with placebo_right:
+                placebo_dist = opt_bt.placebo_distribution.copy()
+                fig = px.histogram(
+                    placebo_dist,
+                    x="final_equity",
+                    nbins=28,
+                    labels={"final_equity": "Final equity"},
+                    color_discrete_sequence=[COLORS["neutral"]],
+                )
+                fig.add_vline(
+                    x=float(opt_row["final_equity"]),
+                    line_width=3,
+                    line_color=COLORS["positive"],
+                    annotation_text="Optimizer",
+                )
+                polish_figure(fig, height=320)
+                st.plotly_chart(fig, width="stretch")
+
         st.markdown("**Recent optimizer validation months**")
         recent_opt = opt_bt.returns.sort_values("return_date", ascending=False).head(18).copy()
         for col in ["modal_probability", "unknown_probability", "turnover", "cost_return"]:
@@ -1596,6 +1735,55 @@ with tab3:
                 ),
                 width="stretch",
             )
+
+        bt_placebo = placebo_audit_table(bt, "Predicted scenario portfolio")
+        if not bt_placebo.empty:
+            st.markdown("**Predicted-scenario placebo audit**")
+            st.caption(
+                "Random long/short baskets use the same rebalance dates, active universe, basket size, and transaction-cost assumption. "
+                "The one-sided p-value is the share of random baskets that beat the predicted-scenario portfolio; lower is better."
+            )
+            equity_row = bt_placebo[bt_placebo["metric"] == "Final equity"].iloc[0]
+            sharpe_row = bt_placebo[bt_placebo["metric"] == "Sharpe"].iloc[0]
+            pb1, pb2, pb3, pb4, pb5 = st.columns(5)
+            pb1.metric("Placebo trials", f"{int(equity_row['placebo_trials']):,}")
+            pb2.metric("Equity percentile", f"{equity_row['strategy_percentile']:.1f}%")
+            pb3.metric("Equity p-value", f"{equity_row['one_sided_p_value']:.3f}")
+            pb4.metric("Sharpe percentile", f"{sharpe_row['strategy_percentile']:.1f}%")
+            pb5.metric("Sharpe p-value", f"{sharpe_row['one_sided_p_value']:.3f}")
+
+            placebo_left, placebo_right = st.columns([1.0, 1.15])
+            with placebo_left:
+                st.dataframe(
+                    format_pct_columns(
+                        bt_placebo,
+                        [
+                            "strategy",
+                            "placebo_median",
+                            "placebo_90th_pct",
+                            "strategy_percentile",
+                            "one_sided_p_value",
+                        ],
+                    ),
+                    width="stretch",
+                )
+            with placebo_right:
+                placebo_dist = bt.placebo_distribution.copy()
+                fig = px.histogram(
+                    placebo_dist,
+                    x="final_equity",
+                    nbins=28,
+                    labels={"final_equity": "Final equity"},
+                    color_discrete_sequence=[COLORS["neutral"]],
+                )
+                fig.add_vline(
+                    x=float(strategy_row["final_equity"]),
+                    line_width=3,
+                    line_color=COLORS["positive"],
+                    annotation_text="Strategy",
+                )
+                polish_figure(fig, height=320)
+                st.plotly_chart(fig, width="stretch")
 
         if not bt.benchmark_diagnostics.empty:
             st.markdown("**Institutional risk audit**")
@@ -2052,8 +2240,81 @@ with tab7:
             width="stretch",
         )
 
+    st.subheader("Walk-forward investable-regime calibration")
+    st.caption(
+        "Checks whether the model-implied scenario weights assigned probability to the scenario whose asset-return template best matched "
+        "next-month realized cross-sectional market returns. This is separate from the asset-ranking gate above."
+    )
+    if market_regime_calibration.summary.empty:
+        st.warning("Not enough history to calibrate scenario weights against realized investable market behavior.")
+    else:
+        market_cal_row = market_regime_calibration.summary.iloc[0]
+        mk1, mk2, mk3, mk4, mk5 = st.columns(5)
+        mk1.metric("Calibration periods", f"{int(market_cal_row['periods'])}")
+        mk2.metric("Top hit rate", f"{market_cal_row['top_hit_rate'] * 100:.1f}%")
+        mk3.metric("Avg assigned prob", f"{market_cal_row['avg_realized_probability'] * 100:.1f}%")
+        mk4.metric("Avg Brier score", f"{market_cal_row['avg_brier_score']:.2f}")
+        mk5.metric("Avg market-fit IC", f"{market_cal_row.get('avg_market_fit_rank_ic', np.nan):.2f}")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Market-regime probability buckets**")
+            bucket_view = market_regime_calibration.probability_buckets.copy()
+            bucket_view["avg_assigned_probability_pct"] = bucket_view["avg_assigned_probability"] * 100.0
+            bucket_view["hit_rate_pct"] = bucket_view["hit_rate"] * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    bucket_view[
+                        [
+                            "probability_bucket",
+                            "observations",
+                            "avg_assigned_probability_pct",
+                            "hit_rate_pct",
+                            "avg_brier_score",
+                            "avg_market_fit_rank_ic",
+                        ]
+                    ],
+                    ["avg_assigned_probability_pct", "hit_rate_pct", "avg_brier_score", "avg_market_fit_rank_ic"],
+                ),
+                width="stretch",
+            )
+        with right:
+            st.markdown("**Recent investable-regime predictions**")
+            recent_market_regime = market_regime_calibration.recent_predictions.copy()
+            recent_market_regime["realized_probability_pct"] = recent_market_regime["realized_probability"] * 100.0
+            recent_market_regime["confidence_pct"] = recent_market_regime["confidence"] * 100.0
+            recent_market_regime["unknown_probability_pct"] = recent_market_regime["unknown_probability"] * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    recent_market_regime[
+                        [
+                            "as_of",
+                            "return_date",
+                            "modal_prediction",
+                            "realized_scenario",
+                            "realized_probability_pct",
+                            "top_hit",
+                            "market_fit_rank_ic",
+                            "confidence_pct",
+                            "unknown_probability_pct",
+                            "valid_assets",
+                        ]
+                    ],
+                    [
+                        "realized_probability_pct",
+                        "top_hit",
+                        "market_fit_rank_ic",
+                        "confidence_pct",
+                        "unknown_probability_pct",
+                    ],
+                ),
+                width="stretch",
+            )
+
     st.subheader("Walk-forward macro-label calibration")
-    st.caption("Checks whether the probability engine assigned meaningful probability to the next-month nearest realized macro regime.")
+    st.caption(
+        "Secondary diagnostic only: checks whether the probability engine assigned meaningful probability to the next-month nearest realized macro-feature regime."
+    )
     if calibration.summary.empty:
         st.warning("Not enough history to run walk-forward scenario calibration.")
     else:

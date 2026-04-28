@@ -84,6 +84,7 @@ class PortfolioBacktestResult:
     drawdowns: pd.DataFrame
     summary: pd.DataFrame
     benchmark_tear_sheet: pd.DataFrame
+    placebo_distribution: pd.DataFrame
     weights: pd.DataFrame
     scenario_counts: pd.DataFrame
     benchmark_diagnostics: pd.DataFrame
@@ -715,6 +716,151 @@ def walk_forward_scenario_calibration(
     )
 
 
+def walk_forward_market_regime_calibration(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    lookback: int = 84,
+    half_life: float | None = 36.0,
+    horizon: int = 1,
+    max_periods: int = 96,
+    min_assets: int = 12,
+) -> ScenarioCalibrationResult:
+    """Calibrate scenario weights against realized investable market behavior."""
+    returns = log_returns(prices)
+    common_index = returns.index.intersection(factors.index).sort_values()
+    zero_scenario = pd.Series(0.0, index=FACTOR_COLUMNS)
+    scenario_names = [s for s in scenarios["scenario"].astype(str).tolist() if s != "Custom"]
+    rows: list[dict[str, object]] = []
+
+    start = max(int(lookback), len(FACTOR_COLUMNS) * 3)
+    end = len(common_index) - horizon
+    if end <= start:
+        empty = pd.DataFrame()
+        return ScenarioCalibrationResult(summary=empty, probability_buckets=empty, recent_predictions=empty, market_outcomes=empty)
+
+    indices = range(start, end)
+    if max_periods > 0:
+        indices = list(indices)[-max_periods:]
+
+    for i in indices:
+        as_of = common_index[i]
+        return_date = common_index[i + horizon]
+        price_history = prices.loc[prices.index <= as_of]
+        factor_history = factors.loc[factors.index <= as_of]
+        next_returns = returns.loc[return_date]
+
+        try:
+            probability_result = estimate_scenario_probabilities(factor_history, scenarios, transition_smoothing=0.0)
+            base_model = build_model(price_history, factor_history, universe, zero_scenario, half_life=half_life)
+            scenario_expected = scenario_expected_from_exposures(base_model.exposures, universe, scenarios)
+        except (ValueError, KeyError, IndexError, np.linalg.LinAlgError):
+            continue
+
+        expected_cols = [col for col in scenario_names if col in scenario_expected.columns]
+        if not expected_cols:
+            continue
+        expected = scenario_expected[expected_cols].replace([np.inf, -np.inf], np.nan)
+        realized = ((np.exp(next_returns) - 1.0) * 100.0).rename("realized_return_pct")
+        joined = expected.join(realized, how="inner").dropna(subset=["realized_return_pct"])
+        joined = joined.dropna(subset=expected_cols, how="all")
+        if len(joined) < min_assets:
+            continue
+
+        realized_rank = joined["realized_return_pct"].rank()
+        fit_rows = []
+        for scenario_name in expected_cols:
+            sample = joined[[scenario_name]].join(realized_rank.rename("realized_rank")).dropna()
+            if len(sample) < min_assets:
+                continue
+            fit = float(sample[scenario_name].rank().corr(sample["realized_rank"]))
+            if np.isfinite(fit):
+                fit_rows.append({"scenario": scenario_name, "market_fit_rank_ic": fit})
+        fit_table = pd.DataFrame(fit_rows)
+        if fit_table.empty:
+            continue
+
+        fit_table = fit_table.sort_values("market_fit_rank_ic", ascending=False)
+        realized_scenario = str(fit_table.iloc[0]["scenario"])
+        market_fit_rank_ic = float(fit_table.iloc[0]["market_fit_rank_ic"])
+        if market_fit_rank_ic <= 0.0:
+            realized_scenario = "Unknown / Mixed"
+
+        p = probability_result.probabilities.set_index("scenario")["probability"]
+        all_labels = list(p.index)
+        y = pd.Series(0.0, index=all_labels)
+        if realized_scenario in y.index:
+            y.loc[realized_scenario] = 1.0
+        assigned = float(p.get(realized_scenario, 0.0))
+        modal = str(p.drop(labels=["Unknown / Mixed"], errors="ignore").idxmax()) if len(p) else "n/a"
+        p_clip = p.clip(lower=1e-12)
+        entropy = float(-(p_clip * np.log(p_clip)).sum() / np.log(len(p_clip))) if len(p_clip) > 1 else 0.0
+        rows.append(
+            {
+                "as_of": as_of,
+                "return_date": return_date,
+                "modal_prediction": modal,
+                "realized_scenario": realized_scenario,
+                "realized_probability": assigned,
+                "brier_score": float(((p - y) ** 2).sum()),
+                "log_score": float(-np.log(max(assigned, 1e-12))),
+                "top_hit": float(modal == realized_scenario),
+                "confidence": float(np.clip(1.0 - entropy, 0.0, 1.0)),
+                "unknown_probability": float(p.get("Unknown / Mixed", 0.0)),
+                "market_fit_rank_ic": market_fit_rank_ic,
+                "valid_assets": int(len(joined)),
+            }
+        )
+
+    predictions = pd.DataFrame(rows)
+    if predictions.empty:
+        return ScenarioCalibrationResult(
+            summary=pd.DataFrame(),
+            probability_buckets=pd.DataFrame(),
+            recent_predictions=predictions,
+            market_outcomes=pd.DataFrame(),
+        )
+
+    summary = pd.DataFrame(
+        [
+            {
+                "periods": len(predictions),
+                "avg_brier_score": predictions["brier_score"].mean(),
+                "avg_log_score": predictions["log_score"].mean(),
+                "top_hit_rate": predictions["top_hit"].mean(),
+                "avg_realized_probability": predictions["realized_probability"].mean(),
+                "avg_confidence": predictions["confidence"].mean(),
+                "avg_unknown_probability": predictions["unknown_probability"].mean(),
+                "avg_market_fit_rank_ic": predictions["market_fit_rank_ic"].mean(),
+            }
+        ]
+    )
+    buckets = predictions.copy()
+    buckets["probability_bucket"] = pd.cut(
+        buckets["realized_probability"],
+        bins=[-0.001, 0.05, 0.20, 0.40, 0.60, 0.80, 1.001],
+        labels=["0-5%", "5-20%", "20-40%", "40-60%", "60-80%", "80-100%"],
+    )
+    bucket_summary = (
+        buckets.groupby("probability_bucket", observed=False)
+        .agg(
+            observations=("realized_probability", "size"),
+            avg_assigned_probability=("realized_probability", "mean"),
+            hit_rate=("top_hit", "mean"),
+            avg_brier_score=("brier_score", "mean"),
+            avg_market_fit_rank_ic=("market_fit_rank_ic", "mean"),
+        )
+        .reset_index()
+    )
+    return ScenarioCalibrationResult(
+        summary=summary,
+        probability_buckets=bucket_summary,
+        recent_predictions=predictions.sort_values("as_of", ascending=False).head(24),
+        market_outcomes=predictions,
+    )
+
+
 def scenario_expected_from_exposures(
     exposures: pd.DataFrame,
     universe: pd.DataFrame,
@@ -1043,6 +1189,7 @@ def walk_forward_optimizer_validation(
             drawdowns=empty,
             summary=empty,
             benchmark_tear_sheet=empty,
+            placebo_distribution=empty,
             weights=empty,
             scenario_counts=empty,
             benchmark_diagnostics=empty,
@@ -1111,6 +1258,14 @@ def walk_forward_optimizer_validation(
     weights_table = pd.concat(weight_rows, ignore_index=True) if weight_rows else pd.DataFrame()
     benchmark_diagnostics = _benchmark_diagnostics(returns_table)
     benchmark_tear_sheet = _benchmark_tear_sheet(returns_table)
+    placebo_distribution = _placebo_distribution(
+        returns_table,
+        returns,
+        universe,
+        n_each=6,
+        n_trials=200,
+        transaction_cost_bps=transaction_cost_bps,
+    )
     rolling_metrics = _rolling_backtest_metrics(returns_table)
     stress_months = _stress_months(returns_table)
     cost_sensitivity = _cost_sensitivity(returns_table)
@@ -1121,6 +1276,7 @@ def walk_forward_optimizer_validation(
         drawdowns=drawdowns,
         summary=summary,
         benchmark_tear_sheet=benchmark_tear_sheet,
+        placebo_distribution=placebo_distribution,
         weights=weights_table,
         scenario_counts=scenario_counts,
         benchmark_diagnostics=benchmark_diagnostics,
@@ -1719,10 +1875,11 @@ def _naive_momentum_weights(history: pd.DataFrame, tickers: list[str], n_each: i
     return weights
 
 
-def _random_placebo_weights(tickers: list[str], as_of: pd.Timestamp, n_each: int = 6) -> pd.Series:
+def _random_placebo_weights(tickers: list[str], as_of: pd.Timestamp, n_each: int = 6, seed_offset: int = 0) -> pd.Series:
     if len(tickers) < n_each * 2:
         return pd.Series(dtype=float)
-    seed = int(pd.Timestamp(as_of).strftime("%Y%m%d"))
+    date_seed = int(pd.Timestamp(as_of).strftime("%Y%m%d"))
+    seed = (date_seed * 1000003 + int(seed_offset) * 9176 + 17) % (2**32 - 1)
     rng = np.random.default_rng(seed)
     selected = rng.choice(np.array(tickers), size=n_each * 2, replace=False)
     longs = selected[:n_each]
@@ -1753,6 +1910,110 @@ def _benchmark_suite_returns(
     out["naive_defensive_return"] = _weighted_log_return(pd.Series({"BIL": 0.5, "AGG": 0.3, "GLD": 0.2}), next_returns)
     out["random_placebo_return"] = _weighted_log_return(_random_placebo_weights(tickers, as_of), next_returns)
     return out
+
+
+def _placebo_distribution(
+    returns_table: pd.DataFrame,
+    returns: pd.DataFrame,
+    universe: pd.DataFrame,
+    n_each: int = 6,
+    n_trials: int = 200,
+    transaction_cost_bps: float = 0.0,
+) -> pd.DataFrame:
+    """Run random long/short baskets on the same rebalance dates as a placebo test."""
+    required = {"as_of", "return_date"}
+    if returns_table.empty or not required.issubset(returns_table.columns):
+        return pd.DataFrame()
+
+    universe_tickers = [ticker for ticker in universe["ticker"].astype(str).tolist() if ticker in returns.columns]
+    if len(universe_tickers) < n_each * 2:
+        return pd.DataFrame()
+
+    schedule = returns_table[["as_of", "return_date"]].dropna().copy()
+    if schedule.empty:
+        return pd.DataFrame()
+
+    scheduled_returns = returns.reindex(pd.to_datetime(schedule["return_date"]).tolist()).reindex(columns=universe_tickers)
+    arithmetic_returns = np.exp(scheduled_returns.to_numpy(dtype=float)) - 1.0
+    as_of_values = pd.to_datetime(schedule["as_of"]).tolist()
+    return_dates = pd.to_datetime(schedule["return_date"]).tolist()
+    spy_by_date = (
+        returns_table.set_index("return_date")["spy_return"].replace([np.inf, -np.inf], np.nan)
+        if "spy_return" in returns_table
+        else pd.Series(dtype=float)
+    )
+    rows: list[dict[str, float | int | str]] = []
+    n_tickers = len(universe_tickers)
+    gross_weight = 0.5 / n_each
+
+    for trial in range(int(n_trials)):
+        trial_returns: list[float] = []
+        trial_dates: list[pd.Timestamp] = []
+        turnovers: list[float] = []
+        costs: list[float] = []
+        previous_weights = np.zeros(n_tickers, dtype=float)
+
+        for month_idx, as_of in enumerate(as_of_values):
+            month_returns = arithmetic_returns[month_idx]
+            valid = np.flatnonzero(np.isfinite(month_returns))
+            if len(valid) < n_each * 2:
+                continue
+
+            date_seed = int(pd.Timestamp(as_of).strftime("%Y%m%d"))
+            seed = (date_seed * 1000003 + int(trial + 1) * 9176 + 17) % (2**32 - 1)
+            rng = np.random.default_rng(seed)
+            selected = rng.choice(valid, size=n_each * 2, replace=False)
+            longs = selected[:n_each]
+            shorts = selected[n_each:]
+
+            weights = np.zeros(n_tickers, dtype=float)
+            weights[longs] = gross_weight
+            weights[shorts] = -gross_weight
+            turnover = float(np.abs(weights - previous_weights).sum() * 0.5)
+            cost_return = turnover * transaction_cost_bps / 10000.0
+
+            portfolio_return = float(weights[longs].dot(month_returns[longs]) + weights[shorts].dot(month_returns[shorts]))
+            if portfolio_return <= -0.999 or not np.isfinite(portfolio_return):
+                continue
+            gross_return = float(np.log1p(portfolio_return))
+
+            trial_returns.append(float(gross_return - cost_return))
+            trial_dates.append(return_dates[month_idx])
+            turnovers.append(turnover)
+            costs.append(cost_return)
+            previous_weights = weights
+
+        series = pd.Series(trial_returns, index=pd.Index(trial_dates, name="return_date"), dtype=float)
+        series = series.replace([np.inf, -np.inf], np.nan).dropna()
+        if len(series) < 3:
+            continue
+
+        stats = _performance_stats(f"Placebo {trial + 1}", series)
+        stats["trial"] = trial + 1
+        stats["avg_turnover_pct"] = float(np.nanmean(turnovers) * 100.0) if turnovers else np.nan
+        stats["avg_cost_drag_pct"] = float(np.nanmean(costs) * 100.0) if costs else np.nan
+
+        spy = spy_by_date.reindex(series.index).dropna()
+        aligned = pd.concat([series.rename("placebo"), spy.rename("spy")], axis=1).dropna()
+        if len(aligned) >= 3:
+            active = aligned["placebo"] - aligned["spy"]
+            active_std = float(active.std(ddof=0))
+            stats["information_ratio_vs_spy"] = (
+                float(active.mean() / active_std * np.sqrt(12.0)) if active_std > 0 else np.nan
+            )
+            spy_stats = _performance_stats("SPY", aligned["spy"])
+            stats["active_cagr_spread_vs_spy_pct"] = float(
+                stats.get("cagr_pct", np.nan) - spy_stats.get("cagr_pct", np.nan)
+            )
+        else:
+            stats["information_ratio_vs_spy"] = np.nan
+            stats["active_cagr_spread_vs_spy_pct"] = np.nan
+
+        rows.append(stats)
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values("final_equity", ascending=False).reset_index(drop=True)
 
 
 def _benchmark_diagnostics(returns_table: pd.DataFrame) -> pd.DataFrame:
@@ -2035,6 +2296,7 @@ def walk_forward_predicted_scenario_portfolio(
             drawdowns=empty,
             summary=empty,
             benchmark_tear_sheet=empty,
+            placebo_distribution=empty,
             weights=empty,
             scenario_counts=empty,
             benchmark_diagnostics=empty,
@@ -2084,6 +2346,14 @@ def walk_forward_predicted_scenario_portfolio(
     weights_table = pd.concat(weight_rows, ignore_index=True) if weight_rows else pd.DataFrame()
     benchmark_diagnostics = _benchmark_diagnostics(returns_table)
     benchmark_tear_sheet = _benchmark_tear_sheet(returns_table)
+    placebo_distribution = _placebo_distribution(
+        returns_table,
+        returns,
+        universe,
+        n_each=n_each,
+        n_trials=200,
+        transaction_cost_bps=transaction_cost_bps,
+    )
     rolling_metrics = _rolling_backtest_metrics(returns_table)
     stress_months = _stress_months(returns_table)
     cost_sensitivity = _cost_sensitivity(returns_table)
@@ -2094,6 +2364,7 @@ def walk_forward_predicted_scenario_portfolio(
         drawdowns=drawdowns,
         summary=summary,
         benchmark_tear_sheet=benchmark_tear_sheet,
+        placebo_distribution=placebo_distribution,
         weights=weights_table,
         scenario_counts=scenario_counts,
         benchmark_diagnostics=benchmark_diagnostics,
