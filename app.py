@@ -322,7 +322,7 @@ def market_validation_summary(market_validation: pd.DataFrame) -> dict:
         and positive_spread_pct >= 55.0
     )
     watch = len(market_validation) >= 36 and spread_mean > 0.0 and positive_spread_pct >= 50.0
-    label = "Validated" if passes else ("Watch" if watch else "Weak")
+    label = "Validated" if passes else ("Not validated" if watch else "Weak")
     severity = "success" if passes else ("warning" if watch else "error")
     if passes:
         message = "Ranking engine passes the current market-outcome validation gate."
