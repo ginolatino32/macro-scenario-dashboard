@@ -153,11 +153,12 @@ The dashboard also reports:
 - `rank_stability`: probability that an asset ranks in the top quartile across plausible scenarios.
 - `weighted_regret`: average distance from the best asset in each scenario.
 - `fragility_score`: high upside in one scenario combined with high dispersion or downside.
+- `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for probability-weighted rankings.
 
 ## Implemented improvement layers
 
 1. Data freshness and source transparency: keep the visible per-source update table, expose the latest completed data month, and refresh committed snapshots through the scheduled/manual GitHub Action.
-2. Probability calibration: walk-forward test the scenario probabilities, tune temperature, and report Brier/log score plus calibration by probability bucket.
+2. Probability and market-outcome calibration: walk-forward test scenario probabilities, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, and hit-rate diagnostics.
 3. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
 4. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.
 5. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, and downside-aware robust rankings.

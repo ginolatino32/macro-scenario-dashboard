@@ -21,6 +21,7 @@ from model import (
     probability_weighted_asset_ranking,
     scenario_overlay_breakdown,
     top_bottom_by_bucket,
+    walk_forward_market_outcome_validation,
     walk_forward_scenario_calibration,
     walk_forward_predicted_scenario_portfolio,
 )
@@ -32,6 +33,7 @@ STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 SOURCE_AUDIT_SCHEMA_VERSION = 2
 BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v6"
+MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v1"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -157,6 +159,26 @@ def build_scenario_matrices(prices: pd.DataFrame, factors: pd.DataFrame, univers
 @st.cache_data
 def build_calibration_report(factors: pd.DataFrame, scenarios: pd.DataFrame):
     return walk_forward_scenario_calibration(factors, scenarios, lookback=84, horizon=1, max_periods=96)
+
+
+@st.cache_data(show_spinner=False)
+def build_market_outcome_validation(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    half_life: float,
+    cache_version: str,
+):
+    return walk_forward_market_outcome_validation(
+        prices,
+        factors,
+        universe,
+        scenarios,
+        lookback=84,
+        half_life=half_life,
+        max_periods=72,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -590,6 +612,14 @@ auto_regime = estimate_scenario_probabilities(factors, scenarios)
 probability_rank = probability_weighted_asset_ranking(scenario_expected, auto_regime.probabilities, result.expected)
 overlay_breakdown = scenario_overlay_breakdown(auto_regime.probabilities, scenarios)
 calibration = build_calibration_report(factors, scenarios)
+market_outcome_validation = build_market_outcome_validation(
+    prices,
+    factors,
+    active_universe,
+    scenarios,
+    half_life=float(half_life),
+    cache_version=MARKET_VALIDATION_CACHE_VERSION,
+)
 optimized_portfolio = optimize_probability_weighted_portfolio(
     scenario_expected,
     auto_regime.probabilities,
@@ -1489,7 +1519,91 @@ with tab7:
         width="stretch",
     )
 
-    st.subheader("Walk-forward scenario calibration")
+    st.subheader("Walk-forward market-outcome validation")
+    st.caption(
+        "Tests whether probability-weighted asset rankings predicted next-month realized cross-sectional returns. "
+        "This is the main validation gate for investment usefulness; macro-label calibration below is secondary."
+    )
+    market_validation = market_outcome_validation.copy()
+    if market_validation.empty:
+        st.warning("Not enough aligned market history to validate probability-weighted rankings against realized asset returns.")
+    else:
+        rank_ic_mean = float(market_validation["rank_ic"].mean())
+        rank_ic_se = float(market_validation["rank_ic"].std(ddof=0) / np.sqrt(len(market_validation))) if len(market_validation) > 1 else np.nan
+        rank_ic_t = rank_ic_mean / rank_ic_se if np.isfinite(rank_ic_se) and rank_ic_se > 0 else np.nan
+        spread_mean = float(market_validation["top_minus_bottom_return_pct"].mean())
+        positive_spread = float(market_validation["positive_spread"].mean() * 100.0)
+        top_hit = float(market_validation["top_hit_rate_pct"].mean())
+        v1, v2, v3, v4, v5 = st.columns(5)
+        v1.metric("Validation months", f"{len(market_validation):,}")
+        v2.metric("Avg rank IC", f"{rank_ic_mean:.2f}")
+        v3.metric("Rank IC t-stat", f"{rank_ic_t:.2f}" if np.isfinite(rank_ic_t) else "n/a")
+        v4.metric("Top-bottom spread", f"{spread_mean:.2f}%")
+        v5.metric("Positive spread hit", f"{positive_spread:.1f}%")
+
+        st.markdown("**Recent market-outcome tests**")
+        recent_market = market_validation.head(24).copy()
+        recent_market["modal_probability_pct"] = recent_market["modal_probability"] * 100.0
+        recent_market["unknown_probability_pct"] = recent_market["unknown_probability"] * 100.0
+        st.dataframe(
+            format_pct_columns(
+                recent_market[
+                    [
+                        "as_of",
+                        "return_date",
+                        "modal_scenario",
+                        "modal_probability_pct",
+                        "unknown_probability_pct",
+                        "rank_ic",
+                        "top_minus_bottom_return_pct",
+                        "top_avg_return_pct",
+                        "bottom_avg_return_pct",
+                        "top_hit_rate_pct",
+                        "valid_assets",
+                        "top_assets",
+                        "bottom_assets",
+                    ]
+                ],
+                [
+                    "modal_probability_pct",
+                    "unknown_probability_pct",
+                    "rank_ic",
+                    "top_minus_bottom_return_pct",
+                    "top_avg_return_pct",
+                    "bottom_avg_return_pct",
+                    "top_hit_rate_pct",
+                ],
+            ),
+            width="stretch",
+        )
+        st.markdown("**Market validation by modal scenario**")
+        by_scenario = (
+            market_validation.groupby("modal_scenario", as_index=False)
+            .agg(
+                months=("rank_ic", "size"),
+                avg_rank_ic=("rank_ic", "mean"),
+                avg_top_minus_bottom_return_pct=("top_minus_bottom_return_pct", "mean"),
+                positive_spread_hit_pct=("positive_spread", lambda x: float(x.mean() * 100.0)),
+                avg_top_hit_rate_pct=("top_hit_rate_pct", "mean"),
+                avg_unknown_probability_pct=("unknown_probability", lambda x: float(x.mean() * 100.0)),
+            )
+            .sort_values(["avg_rank_ic", "avg_top_minus_bottom_return_pct"], ascending=False)
+        )
+        st.dataframe(
+            format_pct_columns(
+                by_scenario,
+                [
+                    "avg_rank_ic",
+                    "avg_top_minus_bottom_return_pct",
+                    "positive_spread_hit_pct",
+                    "avg_top_hit_rate_pct",
+                    "avg_unknown_probability_pct",
+                ],
+            ),
+            width="stretch",
+        )
+
+    st.subheader("Walk-forward macro-label calibration")
     st.caption("Checks whether the probability engine assigned meaningful probability to the next-month nearest realized macro regime.")
     if calibration.summary.empty:
         st.warning("Not enough history to run walk-forward scenario calibration.")

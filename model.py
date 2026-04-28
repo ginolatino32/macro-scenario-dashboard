@@ -65,6 +65,7 @@ class ScenarioCalibrationResult:
     summary: pd.DataFrame
     probability_buckets: pd.DataFrame
     recent_predictions: pd.DataFrame
+    market_outcomes: pd.DataFrame
 
 
 @dataclass
@@ -606,7 +607,7 @@ def walk_forward_scenario_calibration(
     end = len(factor_dates) - horizon
     if end <= start:
         empty = pd.DataFrame()
-        return ScenarioCalibrationResult(summary=empty, probability_buckets=empty, recent_predictions=empty)
+        return ScenarioCalibrationResult(summary=empty, probability_buckets=empty, recent_predictions=empty, market_outcomes=empty)
 
     indices = range(start, end)
     if max_periods > 0:
@@ -670,7 +671,12 @@ def walk_forward_scenario_calibration(
 
     predictions = pd.DataFrame(rows)
     if predictions.empty:
-        return ScenarioCalibrationResult(summary=pd.DataFrame(), probability_buckets=pd.DataFrame(), recent_predictions=predictions)
+        return ScenarioCalibrationResult(
+            summary=pd.DataFrame(),
+            probability_buckets=pd.DataFrame(),
+            recent_predictions=predictions,
+            market_outcomes=pd.DataFrame(),
+        )
 
     summary = pd.DataFrame(
         [
@@ -705,7 +711,120 @@ def walk_forward_scenario_calibration(
         summary=summary,
         probability_buckets=bucket_summary,
         recent_predictions=predictions.sort_values("as_of", ascending=False).head(24),
+        market_outcomes=pd.DataFrame(),
     )
+
+
+def scenario_expected_from_exposures(
+    exposures: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+) -> pd.DataFrame:
+    scenario_values = scenarios[scenarios["scenario"] != "Custom"].set_index("scenario")[FACTOR_COLUMNS].astype(float)
+    expected = exposures.reindex(columns=FACTOR_COLUMNS).dot(scenario_values.T) * 100.0
+    meta = universe.set_index("ticker")[["name", "bucket"]]
+    return expected.join(meta, how="left")
+
+
+def walk_forward_market_outcome_validation(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    lookback: int = 84,
+    half_life: float | None = 36.0,
+    max_periods: int = 72,
+    top_fraction: float = 0.20,
+) -> pd.DataFrame:
+    """Validate probability-weighted rankings against next-month asset returns.
+
+    This is separate from macro-label calibration. It asks whether the scenario
+    probability engine plus asset model ranked assets in the same direction as
+    subsequent realized cross-sectional returns.
+    """
+    returns = log_returns(prices)
+    rel_returns = make_relative_returns(returns, universe)
+    common_index = returns.index.intersection(factors.index).sort_values()
+    start = max(int(lookback), len(FACTOR_COLUMNS) * 3)
+    end = len(common_index) - 1
+    if end <= start:
+        return pd.DataFrame()
+
+    indices = range(start, end)
+    if max_periods > 0:
+        indices = list(indices)[-max_periods:]
+
+    rows: list[dict[str, object]] = []
+    zero_scenario = pd.Series(0.0, index=FACTOR_COLUMNS)
+    for i in indices:
+        as_of = common_index[i]
+        return_date = common_index[i + 1]
+        price_history = prices.loc[prices.index <= as_of]
+        factor_history = factors.loc[factors.index <= as_of]
+        realized = rel_returns.loc[return_date].replace([np.inf, -np.inf], np.nan).dropna()
+        if realized.empty:
+            continue
+        try:
+            probability_result = estimate_scenario_probabilities(
+                factor_history,
+                scenarios,
+                transition_smoothing=0.0,
+            )
+            base_model = build_model(price_history, factor_history, universe, zero_scenario, half_life=half_life)
+            scenario_expected = scenario_expected_from_exposures(base_model.exposures, universe, scenarios)
+            ranking = probability_weighted_asset_ranking(
+                scenario_expected,
+                probability_result.probabilities,
+                base_model.diagnostics,
+            )
+        except (ValueError, KeyError, IndexError, np.linalg.LinAlgError):
+            continue
+
+        scores = ranking["weighted_expected_return_pct"].replace([np.inf, -np.inf], np.nan).dropna()
+        common_assets = scores.index.intersection(realized.index)
+        if len(common_assets) < 12:
+            continue
+        scores = scores.loc[common_assets]
+        realized_common = realized.loc[common_assets]
+        rank_ic = float(scores.corr(realized_common, method="spearman"))
+        if not np.isfinite(rank_ic):
+            continue
+
+        n_top = max(3, int(np.ceil(len(common_assets) * top_fraction)))
+        n_top = min(n_top, max(1, len(common_assets) // 2))
+        ordered = scores.sort_values(ascending=False)
+        top_assets = ordered.head(n_top).index
+        bottom_assets = ordered.tail(n_top).index
+        top_return = float(realized_common.loc[top_assets].mean())
+        bottom_return = float(realized_common.loc[bottom_assets].mean())
+        spread = top_return - bottom_return
+        median_realized = float(realized_common.median())
+        probs = probability_result.probabilities.set_index("scenario")["probability"]
+        modal_scenario = str(probs.drop(index="Unknown / Mixed", errors="ignore").idxmax())
+
+        rows.append(
+            {
+                "as_of": as_of,
+                "return_date": return_date,
+                "modal_scenario": modal_scenario,
+                "modal_probability": float(probs.get(modal_scenario, np.nan)),
+                "unknown_probability": float(probs.get("Unknown / Mixed", 0.0)),
+                "rank_ic": rank_ic,
+                "top_minus_bottom_return_pct": float((np.exp(spread) - 1.0) * 100.0),
+                "top_avg_return_pct": float((np.exp(top_return) - 1.0) * 100.0),
+                "bottom_avg_return_pct": float((np.exp(bottom_return) - 1.0) * 100.0),
+                "top_hit_rate_pct": float((realized_common.loc[top_assets] > median_realized).mean() * 100.0),
+                "positive_spread": float(spread > 0),
+                "valid_assets": int(len(common_assets)),
+                "top_assets": ", ".join(top_assets.astype(str).tolist()),
+                "bottom_assets": ", ".join(bottom_assets.astype(str).tolist()),
+            }
+        )
+
+    outcomes = pd.DataFrame(rows)
+    if outcomes.empty:
+        return outcomes
+    return outcomes.sort_values("as_of", ascending=False).reset_index(drop=True)
 
 
 def probability_weighted_asset_ranking(
