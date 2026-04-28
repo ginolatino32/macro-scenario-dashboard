@@ -1,6 +1,6 @@
 # Macro Scenario Dashboard Starter
 
-This starter replicates the *structure* of Julian's dashboard from the transcript:
+This dashboard provides a macro scenario analysis workflow with:
 
 - macro scenario sliders / presets
 - exposure matrix across asset buckets
