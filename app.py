@@ -30,6 +30,7 @@ DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
+SOURCE_AUDIT_SCHEMA_VERSION = 2
 BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v5"
 
 COLORS = {
@@ -88,6 +89,21 @@ def read_update_state_file() -> dict:
         return {}
 
 
+def source_audit_file_is_current(state: dict) -> bool:
+    if int(state.get("source_audit_schema_version", 0) or 0) < SOURCE_AUDIT_SCHEMA_VERSION:
+        return False
+    if not SOURCE_AUDIT_FILE.exists():
+        return False
+    try:
+        audit = pd.read_csv(SOURCE_AUDIT_FILE, usecols=["dashboard_series", "series_type", "exclude_flag"])
+    except (ValueError, FileNotFoundError):
+        return False
+    required_factors = set(FACTOR_COLUMNS)
+    available = set(audit["dashboard_series"].astype(str))
+    required_columns = {"dashboard_series", "series_type", "exclude_flag"}
+    return required_columns.issubset(audit.columns) and required_factors.issubset(available)
+
+
 @st.cache_data(ttl=6 * 60 * 60, show_spinner=False)
 def refresh_data_on_startup() -> dict:
     if os.getenv("MACRO_DASHBOARD_AUTO_UPDATE", "1") == "0":
@@ -95,7 +111,11 @@ def refresh_data_on_startup() -> dict:
 
     state = read_update_state_file()
     expected_month = last_completed_month_end().strftime("%Y-%m-%d")
-    if state.get("last_complete_month") == expected_month and state.get("prices_last_date") == expected_month and SOURCE_AUDIT_FILE.exists():
+    if (
+        state.get("last_complete_month") == expected_month
+        and state.get("prices_last_date") == expected_month
+        and source_audit_file_is_current(state)
+    ):
         payload = dict(state)
         payload.update({"ok": True, "skipped": True, "skip_reason": "already-current"})
         return payload
@@ -213,6 +233,8 @@ def load_source_audit() -> pd.DataFrame:
         return pd.DataFrame()
     required = {"dashboard_series", "last_true_trade_date", "last_resampled_date", "exclude_flag"}
     if not required.issubset(audit.columns):
+        return pd.DataFrame()
+    if not set(FACTOR_COLUMNS).issubset(set(audit["dashboard_series"].astype(str))):
         return pd.DataFrame()
     return audit
 

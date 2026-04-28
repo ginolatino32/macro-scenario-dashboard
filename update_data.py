@@ -13,6 +13,7 @@ DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
+SOURCE_AUDIT_SCHEMA_VERSION = 2
 
 SOURCE = "yfinance_fred_public_macro_proxies_v1"
 DEFAULT_START = "2008-01-01"
@@ -373,6 +374,7 @@ def update_data(
         "price_symbols": yahoo_symbols,
         "fred_series": FRED_SERIES,
         "source_audit_rows": int(len(source_audit)),
+        "source_audit_schema_version": SOURCE_AUDIT_SCHEMA_VERSION,
     }
     _write_state(payload)
     return payload
