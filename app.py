@@ -22,6 +22,7 @@ from model import (
     scenario_overlay_breakdown,
     top_bottom_by_bucket,
     walk_forward_market_outcome_validation,
+    walk_forward_optimizer_validation,
     walk_forward_scenario_calibration,
     walk_forward_predicted_scenario_portfolio,
 )
@@ -33,7 +34,8 @@ STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 SOURCE_AUDIT_SCHEMA_VERSION = 2
 BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v6"
-MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v1"
+MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v2_score_rules"
+OPTIMIZER_VALIDATION_CACHE_VERSION = "optimizer_validation_v1"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -205,6 +207,28 @@ def build_predicted_portfolio_backtest(
     )
 
 
+@st.cache_data(show_spinner=False)
+def build_optimizer_validation(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    half_life: float,
+    transaction_cost_bps: float,
+    cache_version: str,
+):
+    return walk_forward_optimizer_validation(
+        prices,
+        factors,
+        universe,
+        scenarios,
+        lookback=84,
+        half_life=half_life,
+        transaction_cost_bps=transaction_cost_bps,
+        max_periods=36,
+    )
+
+
 def format_pct_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     out = df.copy()
     for c in cols:
@@ -290,6 +314,7 @@ def confidence_label(value: float) -> str:
 
 
 def market_validation_summary(market_validation: pd.DataFrame) -> dict:
+    market_validation = market_validation_slice(market_validation)
     if market_validation.empty:
         return {
             "label": "Unavailable",
@@ -341,6 +366,140 @@ def market_validation_summary(market_validation: pd.DataFrame) -> dict:
         "positive_spread_pct": positive_spread_pct,
         "top_hit_pct": top_hit_pct,
         "message": message,
+    }
+
+
+def market_validation_slice(
+    market_validation: pd.DataFrame,
+    score_tested: str = "robust_score",
+    universe_variant: str = "all_assets",
+) -> pd.DataFrame:
+    if market_validation.empty:
+        return market_validation
+    out = market_validation.copy()
+    if "score_tested" in out:
+        out = out[out["score_tested"] == score_tested]
+    if "universe_variant" in out:
+        out = out[out["universe_variant"] == universe_variant]
+    return out
+
+
+def validation_gate_label(months: int, rank_ic_t: float, spread: float, hit_pct: float) -> tuple[str, str]:
+    passes = months >= 36 and np.isfinite(rank_ic_t) and rank_ic_t >= 2.0 and spread > 0.0 and hit_pct >= 55.0
+    watch = months >= 36 and spread > 0.0 and hit_pct >= 50.0
+    if passes:
+        return "Validated", "success"
+    if watch:
+        return "Not validated", "warning"
+    return "Weak", "error"
+
+
+def market_validation_scorecard(market_validation: pd.DataFrame) -> pd.DataFrame:
+    if market_validation.empty:
+        return pd.DataFrame()
+    required = {"score_tested", "universe_variant", "rank_ic", "top_minus_bottom_return_pct", "positive_spread", "top_hit_rate_pct"}
+    if not required.issubset(market_validation.columns):
+        return pd.DataFrame()
+
+    rows = []
+    for (score_name, universe_variant), group in market_validation.groupby(["score_tested", "universe_variant"], dropna=False):
+        rank_ic_mean = float(group["rank_ic"].mean())
+        rank_ic_se = float(group["rank_ic"].std(ddof=0) / np.sqrt(len(group))) if len(group) > 1 else np.nan
+        rank_ic_t = rank_ic_mean / rank_ic_se if np.isfinite(rank_ic_se) and rank_ic_se > 0 else np.nan
+        spread_mean = float(group["top_minus_bottom_return_pct"].mean())
+        positive_spread_hit = float(group["positive_spread"].mean() * 100.0)
+        top_hit = float(group["top_hit_rate_pct"].mean())
+        label, _ = validation_gate_label(len(group), rank_ic_t, spread_mean, positive_spread_hit)
+        rows.append(
+            {
+                "score_tested": score_name,
+                "universe_variant": universe_variant,
+                "validation_status": label,
+                "months": int(len(group)),
+                "avg_rank_ic": rank_ic_mean,
+                "rank_ic_t_stat": rank_ic_t,
+                "avg_top_minus_bottom_return_pct": spread_mean,
+                "positive_spread_hit_pct": positive_spread_hit,
+                "avg_top_hit_rate_pct": top_hit,
+            }
+        )
+    return pd.DataFrame(rows).sort_values(
+        ["validation_status", "avg_top_minus_bottom_return_pct", "rank_ic_t_stat"],
+        ascending=[True, False, False],
+    )
+
+
+def optimizer_validation_summary(optimizer_backtest) -> dict:
+    if optimizer_backtest.returns.empty or optimizer_backtest.summary.empty:
+        return {
+            "label": "Unavailable",
+            "severity": "warning",
+            "message": "Not enough aligned history to validate the optimizer walk-forward.",
+            "ir_60_40": np.nan,
+            "ir_equal": np.nan,
+            "ir_risk_parity": np.nan,
+        }
+
+    summary = optimizer_backtest.summary.set_index("series")
+    tear = optimizer_backtest.benchmark_tear_sheet.set_index("benchmark") if not optimizer_backtest.benchmark_tear_sheet.empty else pd.DataFrame()
+    opt = summary.loc["Optimized portfolio"] if "Optimized portfolio" in summary.index else pd.Series(dtype=float)
+    benchmark_names = ["SPY", "60/40 SPY/AGG", "Equal-weight active universe", "Risk-parity proxy"]
+    benchmark_sharpes = [
+        float(summary.loc[name, "sharpe"])
+        for name in benchmark_names
+        if name in summary.index and np.isfinite(float(summary.loc[name, "sharpe"]))
+    ]
+    max_benchmark_sharpe = max(benchmark_sharpes) if benchmark_sharpes else np.nan
+
+    def ir_for(name: str) -> float:
+        if tear.empty or name not in tear.index:
+            return np.nan
+        return float(tear.loc[name, "information_ratio"])
+
+    ir_60_40 = ir_for("60/40 SPY/AGG")
+    ir_equal = ir_for("Equal-weight active universe")
+    ir_risk_parity = ir_for("Risk-parity proxy")
+    variant_names = ["Optimizer ex-crypto", "Optimizer ex-commodities"]
+    variant_positive = all(
+        name in summary.index
+        and np.isfinite(float(summary.loc[name, "sharpe"]))
+        and float(summary.loc[name, "sharpe"]) > 0.0
+        and float(summary.loc[name, "cagr_pct"]) > 0.0
+        for name in variant_names
+    )
+    primary_sharpe = float(opt.get("sharpe", np.nan))
+    primary_months = int(opt.get("months", 0) or 0)
+    ir_positive = all(np.isfinite(x) and x > 0.0 for x in [ir_60_40, ir_equal, ir_risk_parity])
+    passes = (
+        primary_months >= 36
+        and np.isfinite(primary_sharpe)
+        and np.isfinite(max_benchmark_sharpe)
+        and primary_sharpe > max_benchmark_sharpe
+        and ir_positive
+        and variant_positive
+    )
+    watch = primary_months >= 36 and np.isfinite(primary_sharpe) and primary_sharpe > 0.0
+    if passes:
+        label = "Validated"
+        severity = "success"
+        message = "Optimizer passes the benchmark and robustness gate over the walk-forward window."
+    elif watch:
+        label = "Not validated"
+        severity = "warning"
+        message = "Optimizer has positive standalone performance, but it does not clear the benchmark/variant validation gate."
+    else:
+        label = "Weak"
+        severity = "error"
+        message = "Optimizer walk-forward evidence is too weak for capital allocation; keep it research-only."
+
+    return {
+        "label": label,
+        "severity": severity,
+        "message": message,
+        "ir_60_40": ir_60_40,
+        "ir_equal": ir_equal,
+        "ir_risk_parity": ir_risk_parity,
+        "max_benchmark_sharpe": max_benchmark_sharpe,
     }
 
 
@@ -681,6 +840,16 @@ optimized_portfolio = optimize_probability_weighted_portfolio(
     result.expected,
     result.rel_returns,
     active_universe,
+    candidate_limit=28,
+)
+optimizer_validation_backtest = build_optimizer_validation(
+    prices,
+    factors,
+    active_universe,
+    scenarios,
+    half_life=float(half_life),
+    transaction_cost_bps=float(backtest_cost_bps),
+    cache_version=OPTIMIZER_VALIDATION_CACHE_VERSION,
 )
 predicted_portfolio_backtest = build_predicted_portfolio_backtest(
     prices,
@@ -724,6 +893,7 @@ data_status = status_label(
 )
 data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
 market_validation_status = market_validation_summary(market_outcome_validation)
+optimizer_validation_status = optimizer_validation_summary(optimizer_validation_backtest)
 rank_ic_t_display = (
     f"{market_validation_status['rank_ic_t']:.2f}"
     if np.isfinite(market_validation_status["rank_ic_t"])
@@ -750,14 +920,16 @@ st.warning(
     f"Data status: {data_status_display} | "
     f"Regime confidence: {confidence_label(auto_regime.confidence)} | "
     f"Market validation: {market_validation_status['label']} "
-    f"(IC t {rank_ic_t_display}, spread {spread_display}, hit {hit_display})"
+    f"(IC t {rank_ic_t_display}, spread {spread_display}, hit {hit_display}) | "
+    f"Optimizer validation: {optimizer_validation_status['label']}"
 )
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("Assets modeled", f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}")
 c2.metric("Auto modal scenario", str(modal_row["scenario"]))
 c3.metric("Unknown / mixed", f"{unknown_probability * 100:.1f}%")
 c4.metric("Regime confidence", f"{auto_regime.confidence * 100:.1f}%")
-c5.metric("Market validation", str(market_validation_status["label"]))
+c5.metric("Ranking validation", str(market_validation_status["label"]))
+c6.metric("Optimizer validation", str(optimizer_validation_status["label"]))
 
 st.info(scenario_summary_line(scenario))
 st.caption(
@@ -861,6 +1033,17 @@ with tab0:
 with tab1:
     st.subheader("Scenario allocation view")
     st.caption(f"Manual playbook for the selected sidebar scenario: {preset}.")
+    gate_message = (
+        f"Investment-readiness gate: ranking engine is {market_validation_status['label']}; "
+        f"optimizer is {optimizer_validation_status['label']}. "
+        "Dashboard output remains research-only unless both market-ranking and optimizer walk-forward gates validate."
+    )
+    if "error" in {market_validation_status["severity"], optimizer_validation_status["severity"]}:
+        st.error(gate_message)
+    elif "warning" in {market_validation_status["severity"], optimizer_validation_status["severity"]}:
+        st.warning(gate_message)
+    else:
+        st.success(gate_message)
     bucket_view = result.bucket_summary.copy()
     if not bucket_view.empty:
         bucket_view["tilt"] = bucket_view["avg_conviction_score"].apply(bucket_tilt_label)
@@ -1104,6 +1287,7 @@ with tab3:
                         {"constraint": "Max bucket gross", "value": "35%"},
                         {"constraint": "Max net exposure", "value": "25%"},
                         {"constraint": "Gross target", "value": "100%"},
+                        {"constraint": "Candidate screen", "value": "Top 28 risk-adjusted signals"},
                         {"constraint": "Covariance lookback", "value": "60 months"},
                         {"constraint": "Optimizer", "value": str(opt_stats.get("optimizer_status", "constrained SLSQP"))},
                     ]
@@ -1116,6 +1300,170 @@ with tab3:
                     format_pct_columns(optimized_portfolio.constraint_audit, ["actual_pct", "limit_pct"]),
                     width="stretch",
                 )
+
+    st.subheader("Walk-forward optimizer validation")
+    st.caption(
+        "Each rebalance month re-estimates scenario probabilities, rebuilds the asset model using data available at that date, "
+        "runs the same probability-weighted optimizer after the candidate screen, subtracts turnover costs, and applies the weights to the following month. "
+        "Ex-crypto and ex-commodities lines rescale that month's optimized weights after removing the bucket to expose concentration fragility."
+    )
+    opt_bt = optimizer_validation_backtest
+    if opt_bt.returns.empty:
+        st.warning("Not enough aligned history to validate the optimizer walk-forward.")
+    else:
+        opt_summary = opt_bt.summary.copy()
+        opt_summary_idx = opt_summary.set_index("series")
+        opt_row = opt_summary_idx.loc["Optimized portfolio"]
+        spy_row = opt_summary_idx.loc["SPY"] if "SPY" in opt_summary_idx.index else pd.Series(dtype=float)
+        ov1, ov2, ov3, ov4, ov5, ov6 = st.columns(6)
+        ov1.metric("Validation status", optimizer_validation_status["label"])
+        ov2.metric("Optimizer equity", f"{opt_row['final_equity']:.2f}x")
+        ov3.metric("Optimizer Sharpe", f"{opt_row['sharpe']:.2f}")
+        ov4.metric("SPY Sharpe", f"{spy_row.get('sharpe', np.nan):.2f}")
+        ov5.metric("Max drawdown", f"{opt_row['max_drawdown_pct']:.1f}%")
+        ov6.metric("Avg turnover", f"{opt_row.get('avg_turnover_pct', np.nan):.1f}%")
+        if optimizer_validation_status["severity"] == "success":
+            st.success(optimizer_validation_status["message"])
+        elif optimizer_validation_status["severity"] == "warning":
+            st.warning(optimizer_validation_status["message"])
+        else:
+            st.error(optimizer_validation_status["message"])
+        st.caption(
+            "Optimizer gate: pass only if net Sharpe beats the main benchmarks, information ratio is positive versus 60/40, equal weight, "
+            "and risk parity, and ex-crypto / ex-commodities variants remain positive."
+        )
+
+        opt_first_as_of = pd.to_datetime(opt_bt.returns["as_of"]).min()
+        opt_equity = add_starting_value(opt_bt.equity, opt_first_as_of, value=1.0)
+        fig = go.Figure()
+        opt_line_styles = {
+            "Optimized portfolio": {"color": "#2dd4bf", "width": 4, "dash": "solid"},
+            "SPY": {"color": "#60a5fa", "width": 3, "dash": "solid"},
+            "60/40 SPY/AGG": {"color": "#facc15", "width": 2.5, "dash": "solid"},
+            "Equal-weight active universe": {"color": "#c084fc", "width": 2.5, "dash": "dot"},
+            "Risk-parity proxy": {"color": "#fb923c", "width": 2.5, "dash": "dot"},
+            "Optimizer ex-crypto": {"color": "#5eead4", "width": 2, "dash": "dash"},
+            "Optimizer ex-commodities": {"color": "#99f6e4", "width": 2, "dash": "dashdot"},
+        }
+        for series, style in opt_line_styles.items():
+            if series not in opt_equity:
+                continue
+            fig.add_trace(
+                go.Scatter(
+                    x=opt_equity.index,
+                    y=opt_equity[series],
+                    name=series,
+                    mode="lines",
+                    line=style,
+                    connectgaps=True,
+                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:.2f}x<extra>" + series + "</extra>",
+                )
+            )
+        plotted_equity = opt_equity[[series for series in opt_line_styles if series in opt_equity]]
+        max_equity = float(plotted_equity.max(numeric_only=True).max())
+        fig.update_layout(xaxis_title="", yaxis_title="Growth of $1")
+        fig.update_yaxes(range=[0, max(1.1, max_equity * 1.08)])
+        polish_figure(fig, height=460)
+        st.plotly_chart(fig, width="stretch")
+
+        opt_left, opt_right = st.columns([1.2, 1.0])
+        with opt_left:
+            st.markdown("**Optimizer validation summary**")
+            display_series = [
+                "Optimized portfolio",
+                "Optimizer ex-crypto",
+                "Optimizer ex-commodities",
+                "SPY",
+                "60/40 SPY/AGG",
+                "Equal-weight active universe",
+                "Risk-parity proxy",
+            ]
+            st.dataframe(
+                format_pct_columns(
+                    opt_summary[opt_summary["series"].isin(display_series)],
+                    [
+                        "final_equity",
+                        "total_return_pct",
+                        "cagr_pct",
+                        "annual_vol_pct",
+                        "sharpe",
+                        "max_drawdown_pct",
+                        "hit_rate_pct",
+                        "avg_turnover_pct",
+                        "avg_cost_drag_pct",
+                    ],
+                ),
+                width="stretch",
+            )
+        with opt_right:
+            st.markdown("**Optimizer benchmark gate**")
+            if opt_bt.benchmark_tear_sheet.empty:
+                st.warning("Benchmark comparison is unavailable.")
+            else:
+                st.dataframe(
+                    format_pct_columns(
+                        opt_bt.benchmark_tear_sheet[
+                            opt_bt.benchmark_tear_sheet["benchmark"].isin(
+                                ["SPY", "60/40 SPY/AGG", "Equal-weight active universe", "Risk-parity proxy"]
+                            )
+                        ],
+                        [
+                            "strategy_cagr_pct",
+                            "benchmark_cagr_pct",
+                            "active_cagr_spread_pct",
+                            "strategy_sharpe",
+                            "benchmark_sharpe",
+                            "sharpe_spread",
+                            "tracking_error_pct",
+                            "information_ratio",
+                            "beta",
+                            "correlation",
+                            "strategy_max_dd_pct",
+                            "benchmark_max_dd_pct",
+                        ],
+                    ),
+                    width="stretch",
+                )
+
+        st.markdown("**Recent optimizer validation months**")
+        recent_opt = opt_bt.returns.sort_values("return_date", ascending=False).head(18).copy()
+        for col in ["modal_probability", "unknown_probability", "turnover", "cost_return"]:
+            if col in recent_opt:
+                recent_opt[f"{col}_pct"] = recent_opt[col] * 100.0
+        for col in ["strategy_return", "spy_return", "sixty_forty_return", "equal_weight_return", "risk_parity_return"]:
+            if col in recent_opt:
+                recent_opt[f"{col}_pct"] = (np.exp(recent_opt[col]) - 1.0) * 100.0
+        st.dataframe(
+            format_pct_columns(
+                recent_opt[
+                    [
+                        "as_of",
+                        "return_date",
+                        "modal_scenario",
+                        "modal_probability_pct",
+                        "unknown_probability_pct",
+                        "strategy_return_pct",
+                        "spy_return_pct",
+                        "sixty_forty_return_pct",
+                        "equal_weight_return_pct",
+                        "risk_parity_return_pct",
+                        "turnover_pct",
+                        "n_assets",
+                    ]
+                ],
+                [
+                    "modal_probability_pct",
+                    "unknown_probability_pct",
+                    "strategy_return_pct",
+                    "spy_return_pct",
+                    "sixty_forty_return_pct",
+                    "equal_weight_return_pct",
+                    "risk_parity_return_pct",
+                    "turnover_pct",
+                ],
+            ),
+            width="stretch",
+        )
 
     st.subheader("Walk-forward predicted-scenario portfolio vs SPY")
     st.caption(
@@ -1597,7 +1945,8 @@ with tab7:
         "Tests whether probability-weighted asset rankings predicted next-month realized cross-sectional returns. "
         "This is the main validation gate for investment usefulness; macro-label calibration below is secondary."
     )
-    market_validation = market_outcome_validation.copy()
+    market_validation_all = market_outcome_validation.copy()
+    market_validation = market_validation_slice(market_validation_all).copy()
     if market_validation.empty:
         st.warning("Not enough aligned market history to validate probability-weighted rankings against realized asset returns.")
     else:
@@ -1622,6 +1971,23 @@ with tab7:
             st.warning(market_validation_status["message"])
         else:
             st.error(market_validation_status["message"])
+
+        scorecard = market_validation_scorecard(market_validation_all)
+        if not scorecard.empty:
+            st.markdown("**Validation by ranking rule and universe variant**")
+            st.dataframe(
+                format_pct_columns(
+                    scorecard,
+                    [
+                        "avg_rank_ic",
+                        "rank_ic_t_stat",
+                        "avg_top_minus_bottom_return_pct",
+                        "positive_spread_hit_pct",
+                        "avg_top_hit_rate_pct",
+                    ],
+                ),
+                width="stretch",
+            )
 
         st.markdown("**Recent market-outcome tests**")
         recent_market = market_validation.head(24).copy()

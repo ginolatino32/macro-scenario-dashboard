@@ -735,16 +735,30 @@ def walk_forward_market_outcome_validation(
     half_life: float | None = 36.0,
     max_periods: int = 72,
     top_fraction: float = 0.20,
+    score_tests: tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """Validate probability-weighted rankings against next-month asset returns.
 
     This is separate from macro-label calibration. It asks whether the scenario
     probability engine plus asset model ranked assets in the same direction as
-    subsequent realized cross-sectional returns.
+    subsequent realized cross-sectional returns. Multiple ranking rules and
+    universe variants are tested so the dashboard can distinguish a robust
+    signal from a score that works only under one asset bucket.
     """
+    if score_tests is None:
+        score_tests = (
+            "robust_score",
+            "weighted_expected_return_pct",
+            "rank_stability",
+            "fragility_score",
+            "robust_score_ex_regret",
+            "robust_score_with_regret",
+        )
+
     returns = log_returns(prices)
     rel_returns = make_relative_returns(returns, universe)
     common_index = returns.index.intersection(factors.index).sort_values()
+    meta = universe.set_index("ticker")[["bucket"]]
     start = max(int(lookback), len(FACTOR_COLUMNS) * 3)
     end = len(common_index) - 1
     if end <= start:
@@ -780,51 +794,341 @@ def walk_forward_market_outcome_validation(
         except (ValueError, KeyError, IndexError, np.linalg.LinAlgError):
             continue
 
-        scores = ranking["weighted_expected_return_pct"].replace([np.inf, -np.inf], np.nan).dropna()
-        common_assets = scores.index.intersection(realized.index)
-        if len(common_assets) < 12:
-            continue
-        scores = scores.loc[common_assets]
-        realized_common = realized.loc[common_assets]
-        rank_ic = float(scores.corr(realized_common, method="spearman"))
-        if not np.isfinite(rank_ic):
-            continue
-
-        n_top = max(3, int(np.ceil(len(common_assets) * top_fraction)))
-        n_top = min(n_top, max(1, len(common_assets) // 2))
-        ordered = scores.sort_values(ascending=False)
-        top_assets = ordered.head(n_top).index
-        bottom_assets = ordered.tail(n_top).index
-        top_return = float(realized_common.loc[top_assets].mean())
-        bottom_return = float(realized_common.loc[bottom_assets].mean())
-        spread = top_return - bottom_return
-        median_realized = float(realized_common.median())
         probs = probability_result.probabilities.set_index("scenario")["probability"]
         modal_scenario = str(probs.drop(index="Unknown / Mixed", errors="ignore").idxmax())
+        scored = ranking.copy()
+        scored["robust_score_ex_regret"] = scored["robust_score"]
+        scored["robust_score_with_regret"] = scored["robust_score"] - 0.20 * scored["weighted_regret_pct"].fillna(0.0)
+        score_direction = {
+            "fragility_score": -1.0,
+            "scenario_dispersion_pct": -1.0,
+            "downside_loss_pct": -1.0,
+        }
+        buckets = meta.reindex(scored.index)["bucket"].fillna("Unclassified")
+        variants: dict[str, pd.Index] = {
+            "all_assets": scored.index,
+            "ex_crypto": scored.index[buckets.ne("Crypto")],
+            "ex_commodities": scored.index[buckets.ne("Commodity")],
+        }
 
-        rows.append(
-            {
-                "as_of": as_of,
-                "return_date": return_date,
-                "modal_scenario": modal_scenario,
-                "modal_probability": float(probs.get(modal_scenario, np.nan)),
-                "unknown_probability": float(probs.get("Unknown / Mixed", 0.0)),
-                "rank_ic": rank_ic,
-                "top_minus_bottom_return_pct": float((np.exp(spread) - 1.0) * 100.0),
-                "top_avg_return_pct": float((np.exp(top_return) - 1.0) * 100.0),
-                "bottom_avg_return_pct": float((np.exp(bottom_return) - 1.0) * 100.0),
-                "top_hit_rate_pct": float((realized_common.loc[top_assets] > median_realized).mean() * 100.0),
-                "positive_spread": float(spread > 0),
-                "valid_assets": int(len(common_assets)),
-                "top_assets": ", ".join(top_assets.astype(str).tolist()),
-                "bottom_assets": ", ".join(bottom_assets.astype(str).tolist()),
-            }
-        )
+        for score_name in score_tests:
+            if score_name not in scored.columns:
+                continue
+            raw_scores = scored[score_name].replace([np.inf, -np.inf], np.nan).dropna()
+            direction = score_direction.get(score_name, 1.0)
+            scores_all = raw_scores * direction
+            for variant_name, variant_index in variants.items():
+                scores = scores_all.reindex(variant_index).dropna()
+                common_assets = scores.index.intersection(realized.index)
+                if len(common_assets) < 12:
+                    continue
+                scores = scores.loc[common_assets]
+                realized_common = realized.loc[common_assets]
+                rank_ic = float(scores.corr(realized_common, method="spearman"))
+                if not np.isfinite(rank_ic):
+                    continue
+
+                n_top = max(3, int(np.ceil(len(common_assets) * top_fraction)))
+                n_top = min(n_top, max(1, len(common_assets) // 2))
+                ordered = scores.sort_values(ascending=False)
+                top_assets = ordered.head(n_top).index
+                bottom_assets = ordered.tail(n_top).index
+                top_return = float(realized_common.loc[top_assets].mean())
+                bottom_return = float(realized_common.loc[bottom_assets].mean())
+                spread = top_return - bottom_return
+                median_realized = float(realized_common.median())
+
+                rows.append(
+                    {
+                        "as_of": as_of,
+                        "return_date": return_date,
+                        "score_tested": score_name,
+                        "score_direction": "lower_is_better" if direction < 0 else "higher_is_better",
+                        "universe_variant": variant_name,
+                        "modal_scenario": modal_scenario,
+                        "modal_probability": float(probs.get(modal_scenario, np.nan)),
+                        "unknown_probability": float(probs.get("Unknown / Mixed", 0.0)),
+                        "rank_ic": rank_ic,
+                        "top_minus_bottom_return_pct": float((np.exp(spread) - 1.0) * 100.0),
+                        "top_avg_return_pct": float((np.exp(top_return) - 1.0) * 100.0),
+                        "bottom_avg_return_pct": float((np.exp(bottom_return) - 1.0) * 100.0),
+                        "top_hit_rate_pct": float((realized_common.loc[top_assets] > median_realized).mean() * 100.0),
+                        "positive_spread": float(spread > 0),
+                        "valid_assets": int(len(common_assets)),
+                        "top_assets": ", ".join(top_assets.astype(str).tolist()),
+                        "bottom_assets": ", ".join(bottom_assets.astype(str).tolist()),
+                    }
+                )
 
     outcomes = pd.DataFrame(rows)
     if outcomes.empty:
         return outcomes
     return outcomes.sort_values("as_of", ascending=False).reset_index(drop=True)
+
+
+def walk_forward_optimizer_validation(
+    prices: pd.DataFrame,
+    factors: pd.DataFrame,
+    universe: pd.DataFrame,
+    scenarios: pd.DataFrame,
+    lookback: int = 84,
+    half_life: float | None = 36.0,
+    transaction_cost_bps: float = 5.0,
+    max_periods: int = 72,
+) -> PortfolioBacktestResult:
+    """Walk-forward validation for the probability-weighted optimizer itself."""
+    returns = log_returns(prices)
+    common_index = returns.index.intersection(factors.index).sort_values()
+    zero_scenario = pd.Series(0.0, index=FACTOR_COLUMNS)
+    meta = universe.set_index("ticker")[["name", "bucket"]]
+    buckets = meta["bucket"].fillna("Unclassified")
+    variant_exclusions = {"all_assets": None, "ex_crypto": "Crypto", "ex_commodities": "Commodity"}
+    return_columns = {
+        "all_assets": "strategy_return",
+        "ex_crypto": "ex_crypto_strategy_return",
+        "ex_commodities": "ex_commodities_strategy_return",
+    }
+    gross_columns = {
+        "all_assets": "gross_strategy_return",
+        "ex_crypto": "ex_crypto_gross_strategy_return",
+        "ex_commodities": "ex_commodities_gross_strategy_return",
+    }
+
+    start = max(int(lookback), len(FACTOR_COLUMNS) * 3)
+    indices = range(start, len(common_index) - 1)
+    if max_periods > 0:
+        indices = list(indices)[-max_periods:]
+
+    rows: list[dict[str, object]] = []
+    audit_rows: list[dict[str, object]] = []
+    weight_rows: list[pd.DataFrame] = []
+    previous_weights: dict[str, pd.Series] = {name: pd.Series(dtype=float) for name in variant_exclusions}
+
+    for i in indices:
+        as_of = common_index[i]
+        next_date = common_index[i + 1]
+        price_history = prices.loc[prices.index <= as_of]
+        factor_history = factors.loc[factors.index <= as_of]
+        next_returns = returns.loc[next_date]
+        price_max_date = price_history.index.max() if not price_history.empty else pd.NaT
+        factor_max_date = factor_history.index.max() if not factor_history.empty else pd.NaT
+
+        try:
+            probabilities = estimate_scenario_probabilities(factor_history, scenarios)
+        except (ValueError, KeyError, IndexError, np.linalg.LinAlgError):
+            continue
+
+        modeled = probabilities.probabilities[~probabilities.probabilities["is_unknown"]]
+        if modeled.empty:
+            continue
+        modal_row = modeled.sort_values("probability", ascending=False).iloc[0]
+        row: dict[str, object] = {
+            "as_of": as_of,
+            "return_date": next_date,
+            "modal_scenario": str(modal_row["scenario"]),
+            "modal_probability": float(modal_row["probability"]),
+            "unknown_probability": float(probabilities.unknown_probability),
+            "confidence": float(probabilities.confidence),
+        }
+
+        try:
+            base_model = build_model(price_history, factor_history, universe, zero_scenario, half_life=half_life)
+            scenario_expected = scenario_expected_from_exposures(base_model.exposures, universe, scenarios)
+            optimized = optimize_probability_weighted_portfolio(
+                scenario_expected,
+                probabilities.probabilities,
+                base_model.diagnostics,
+                base_model.rel_returns,
+                universe,
+                candidate_limit=28,
+            )
+        except (ValueError, KeyError, IndexError, np.linalg.LinAlgError):
+            continue
+
+        if optimized.weights.empty:
+            full_weights = pd.Series(dtype=float)
+        else:
+            full_weights = optimized.weights["weight"].astype(float)
+            full_weights = full_weights.reindex(next_returns.index).dropna()
+            full_weights = full_weights[full_weights.abs() > 1e-12]
+
+        weights_by_variant: dict[str, pd.Series] = {"all_assets": full_weights}
+        for variant_name, excluded_bucket in variant_exclusions.items():
+            if variant_name == "all_assets":
+                continue
+            weights_by_variant[variant_name] = _rebalance_filtered_weights(full_weights, buckets, str(excluded_bucket))
+
+        for variant_name, weights in weights_by_variant.items():
+
+            if weights.empty:
+                row[return_columns[variant_name]] = np.nan
+                row[gross_columns[variant_name]] = np.nan
+                row[f"{variant_name}_turnover"] = np.nan
+                row[f"{variant_name}_cost_return"] = np.nan
+                continue
+
+            turnover_index = weights.index.union(previous_weights[variant_name].index)
+            turnover = float(
+                (
+                    weights.reindex(turnover_index).fillna(0.0)
+                    - previous_weights[variant_name].reindex(turnover_index).fillna(0.0)
+                )
+                .abs()
+                .sum()
+                * 0.5
+            )
+            cost_return = turnover * transaction_cost_bps / 10000.0
+            gross_return = _weighted_log_return(weights, next_returns)
+            net_return = float(gross_return - cost_return) if np.isfinite(gross_return) else np.nan
+            row[return_columns[variant_name]] = net_return
+            row[gross_columns[variant_name]] = gross_return
+            row[f"{variant_name}_turnover"] = turnover
+            row[f"{variant_name}_cost_return"] = cost_return
+            if variant_name == "all_assets":
+                row.update(
+                    {
+                        "gross_exposure": float(weights.abs().sum()),
+                        "net_exposure": float(weights.sum()),
+                        "turnover": turnover,
+                        "cost_return": cost_return,
+                        "n_assets": int(len(weights)),
+                        "n_longs": int((weights > 0).sum()),
+                        "n_shorts": int((weights < 0).sum()),
+                    }
+                )
+
+            weight_detail = weights.rename("weight").to_frame()
+            weight_detail["as_of"] = as_of
+            weight_detail["return_date"] = next_date
+            weight_detail["variant"] = variant_name
+            weight_detail["modal_scenario"] = str(modal_row["scenario"])
+            weight_detail["side"] = np.where(weight_detail["weight"] > 0, "Long", "Short")
+            weight_detail = weight_detail.join(meta, how="left")
+            weight_rows.append(weight_detail.reset_index().rename(columns={"index": "ticker"}))
+            previous_weights[variant_name] = weights
+
+        if "strategy_return" not in row or not np.isfinite(float(row.get("strategy_return", np.nan))):
+            continue
+        row["excess_return"] = (
+            float(row["strategy_return"]) - float(next_returns.get("SPY", np.nan))
+            if np.isfinite(float(next_returns.get("SPY", np.nan)))
+            else np.nan
+        )
+        row.update(_benchmark_suite_returns(returns, next_returns, universe, as_of))
+        rows.append(row)
+        audit_rows.append(
+            {
+                "as_of": as_of,
+                "return_date": next_date,
+                "price_history_max_date": price_max_date,
+                "factor_history_max_date": factor_max_date,
+                "decision_before_return": bool(as_of < next_date),
+                "prices_lag_days": int((as_of - price_max_date).days) if pd.notna(price_max_date) else np.nan,
+                "factors_lag_days": int((as_of - factor_max_date).days) if pd.notna(factor_max_date) else np.nan,
+                "lookahead_flag": bool(
+                    pd.notna(price_max_date)
+                    and pd.notna(factor_max_date)
+                    and (price_max_date > as_of or factor_max_date > as_of or next_date <= as_of)
+                ),
+                "data_vintage_note": "latest-revised public proxy data; no ALFRED point-in-time vintage layer",
+            }
+        )
+
+    returns_table = pd.DataFrame(rows)
+    if returns_table.empty:
+        empty = pd.DataFrame()
+        return PortfolioBacktestResult(
+            returns=empty,
+            equity=empty,
+            drawdowns=empty,
+            summary=empty,
+            benchmark_tear_sheet=empty,
+            weights=empty,
+            scenario_counts=empty,
+            benchmark_diagnostics=empty,
+            rolling_metrics=empty,
+            stress_months=empty,
+            cost_sensitivity=empty,
+            point_in_time_audit=empty,
+        )
+
+    returns_table = returns_table.sort_values("return_date").reset_index(drop=True)
+    equity_series = {"Optimized portfolio": returns_table["strategy_return"]}
+    if "ex_crypto_strategy_return" in returns_table:
+        equity_series["Optimizer ex-crypto"] = returns_table["ex_crypto_strategy_return"]
+    if "ex_commodities_strategy_return" in returns_table:
+        equity_series["Optimizer ex-commodities"] = returns_table["ex_commodities_strategy_return"]
+    for column, label in BENCHMARK_RETURN_COLUMNS.items():
+        if column in returns_table:
+            equity_series[label] = returns_table[column]
+    equity = pd.DataFrame(
+        {label: np.exp(series.fillna(0.0).cumsum()).to_numpy() for label, series in equity_series.items()},
+        index=returns_table["return_date"],
+    )
+    equity.index.name = "date"
+    drawdowns = equity / equity.cummax() - 1.0
+    drawdowns = drawdowns * 100.0
+
+    summary_rows = [
+        _performance_stats("Optimized portfolio", returns_table["strategy_return"]),
+        _performance_stats("Optimizer ex-crypto", returns_table["ex_crypto_strategy_return"])
+        if "ex_crypto_strategy_return" in returns_table
+        else {"series": "Optimizer ex-crypto", "months": 0},
+        _performance_stats("Optimizer ex-commodities", returns_table["ex_commodities_strategy_return"])
+        if "ex_commodities_strategy_return" in returns_table
+        else {"series": "Optimizer ex-commodities", "months": 0},
+    ]
+    for column, label in BENCHMARK_RETURN_COLUMNS.items():
+        if column in returns_table:
+            summary_rows.append(_performance_stats(label, returns_table[column]))
+    summary = pd.DataFrame(summary_rows)
+    summary["avg_turnover_pct"] = np.nan
+    summary["avg_cost_drag_pct"] = np.nan
+    summary.loc[summary["series"] == "Optimized portfolio", "avg_turnover_pct"] = float(returns_table["turnover"].mean() * 100.0)
+    summary.loc[summary["series"] == "Optimized portfolio", "avg_cost_drag_pct"] = float(returns_table["cost_return"].mean() * 100.0)
+    if "ex_crypto_turnover" in returns_table:
+        summary.loc[summary["series"] == "Optimizer ex-crypto", "avg_turnover_pct"] = float(returns_table["ex_crypto_turnover"].mean() * 100.0)
+        summary.loc[summary["series"] == "Optimizer ex-crypto", "avg_cost_drag_pct"] = float(returns_table["ex_crypto_cost_return"].mean() * 100.0)
+    if "ex_commodities_turnover" in returns_table:
+        summary.loc[summary["series"] == "Optimizer ex-commodities", "avg_turnover_pct"] = float(
+            returns_table["ex_commodities_turnover"].mean() * 100.0
+        )
+        summary.loc[summary["series"] == "Optimizer ex-commodities", "avg_cost_drag_pct"] = float(
+            returns_table["ex_commodities_cost_return"].mean() * 100.0
+        )
+
+    scenario_counts = (
+        returns_table.groupby("modal_scenario", as_index=False)
+        .agg(
+            months=("strategy_return", "size"),
+            avg_modal_probability_pct=("modal_probability", lambda x: float(x.mean() * 100.0)),
+            avg_strategy_return_pct=("strategy_return", lambda x: float((np.exp(x.mean()) - 1.0) * 100.0)),
+            avg_spy_return_pct=("spy_return", lambda x: float((np.exp(x.mean()) - 1.0) * 100.0)),
+            hit_rate_pct=("strategy_return", lambda x: float((x > 0).mean() * 100.0)),
+        )
+        .sort_values("months", ascending=False)
+    )
+    weights_table = pd.concat(weight_rows, ignore_index=True) if weight_rows else pd.DataFrame()
+    benchmark_diagnostics = _benchmark_diagnostics(returns_table)
+    benchmark_tear_sheet = _benchmark_tear_sheet(returns_table)
+    rolling_metrics = _rolling_backtest_metrics(returns_table)
+    stress_months = _stress_months(returns_table)
+    cost_sensitivity = _cost_sensitivity(returns_table)
+    point_in_time_audit = pd.DataFrame(audit_rows).sort_values("return_date").reset_index(drop=True)
+    return PortfolioBacktestResult(
+        returns=returns_table,
+        equity=equity,
+        drawdowns=drawdowns,
+        summary=summary,
+        benchmark_tear_sheet=benchmark_tear_sheet,
+        weights=weights_table,
+        scenario_counts=scenario_counts,
+        benchmark_diagnostics=benchmark_diagnostics,
+        rolling_metrics=rolling_metrics,
+        stress_months=stress_months,
+        cost_sensitivity=cost_sensitivity,
+        point_in_time_audit=point_in_time_audit,
+    )
 
 
 def probability_weighted_asset_ranking(
@@ -915,6 +1219,7 @@ def optimize_probability_weighted_portfolio(
     max_net_exposure: float = 0.25,
     risk_aversion: float = 6.0,
     covariance_lookback: int = 60,
+    candidate_limit: int | None = None,
 ) -> PortfolioOptimizationResult:
     """Build a constrained covariance-aware long/short macro tilt from scenario probabilities."""
     empty = pd.DataFrame()
@@ -948,6 +1253,17 @@ def optimize_probability_weighted_portfolio(
         diag_floor = 0.0025**2
     cov = hist_cov + between
     cov = cov + pd.DataFrame(np.eye(len(common_assets)) * max(diag_floor * 0.15, 1e-6), index=common_assets, columns=common_assets)
+
+    if candidate_limit is not None and candidate_limit > 0 and len(common_assets) > int(candidate_limit):
+        diag_vol = pd.Series(np.sqrt(np.maximum(np.diag(cov.to_numpy(dtype=float)), 1e-12)), index=common_assets)
+        selection_score = mu.abs().reindex(common_assets).fillna(0.0) / diag_vol.replace(0.0, np.nan)
+        selected = selection_score.replace([np.inf, -np.inf], np.nan).dropna().sort_values(ascending=False).head(int(candidate_limit)).index
+        common_assets = [asset for asset in common_assets if asset in selected]
+        expected_decimal = expected_decimal.reindex(common_assets)
+        diagnostics = diagnostics.reindex(common_assets)
+        mu = mu.reindex(common_assets).fillna(0.0)
+        hist = hist.reindex(columns=common_assets)
+        cov = cov.reindex(index=common_assets, columns=common_assets).fillna(0.0)
 
     hist_mean = hist.mean().reindex(common_assets).fillna(0.0)
     confidence = max(0.25, min(1.0, 1.0 - unknown_prob))
@@ -1349,6 +1665,24 @@ def _rebalance_basket_weights(basket: pd.DataFrame, next_returns: pd.Series) -> 
     balanced.loc[longs.index] = longs / longs.sum() * 0.5
     balanced.loc[shorts.index] = shorts / shorts.abs().sum() * 0.5
     return balanced[balanced.abs() > 1e-12]
+
+
+def _rebalance_filtered_weights(weights: pd.Series, buckets: pd.Series, excluded_bucket: str) -> pd.Series:
+    filtered = weights.loc[buckets.reindex(weights.index).fillna("Unclassified").ne(excluded_bucket)].copy()
+    filtered = filtered[filtered.abs() > 1e-12]
+    if filtered.empty:
+        return pd.Series(dtype=float)
+
+    out = pd.Series(0.0, index=filtered.index)
+    source_longs = weights[weights > 0]
+    source_shorts = weights[weights < 0]
+    longs = filtered[filtered > 0]
+    shorts = filtered[filtered < 0]
+    if not longs.empty and float(source_longs.sum()) > 0:
+        out.loc[longs.index] = longs / longs.sum() * float(source_longs.sum())
+    if not shorts.empty and float(source_shorts.abs().sum()) > 0:
+        out.loc[shorts.index] = shorts / shorts.abs().sum() * float(source_shorts.abs().sum())
+    return out[out.abs() > 1e-12]
 
 
 def _weighted_log_return(weights: pd.Series, next_returns: pd.Series) -> float:

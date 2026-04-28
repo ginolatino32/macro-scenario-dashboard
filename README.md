@@ -10,6 +10,7 @@ This dashboard provides a macro scenario analysis workflow with:
 - recency-weighted regressions
 - investor-facing bucket tilts, long/short playbook, factor attribution, scenario stress map, and model diagnostics
 - automatic scenario probabilities, unknown/mixed regime detection, probability-weighted asset rankings, robustness, downside, regret, and fragility diagnostics
+- walk-forward optimizer validation versus SPY, 60/40, equal-weight, and risk-parity benchmarks, with ex-crypto and ex-commodities fragility checks
 
 It will not reproduce any proprietary institutional output unless you have the same historical data, factor definitions, scenario presets, and weighting rules.
 The dashboard uses public monthly Yahoo/FRED proxy data. Treat the macro factors as transparent proxies and validate the proxy choices before using the outputs for capital allocation.
@@ -153,15 +154,16 @@ The dashboard also reports:
 - `rank_stability`: probability that an asset ranks in the top quartile across plausible scenarios.
 - `weighted_regret`: average distance from the best asset in each scenario.
 - `fragility_score`: high upside in one scenario combined with high dispersion or downside.
-- `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for probability-weighted rankings.
-- `market_validation_status`: fail-closed dashboard gate that keeps rankings research-only unless the market-outcome test has enough history, a rank IC t-stat above 2.0, a positive top-minus-bottom spread, and at least a 55% positive-spread hit rate.
+- `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for multiple ranking rules, including robust score, weighted expected return, rank stability, fragility, and regret-adjusted variants.
+- `market_validation_status`: fail-closed dashboard gate that keeps rankings research-only unless the robust-score market-outcome test has enough history, a rank IC t-stat above 2.0, a positive top-minus-bottom spread, and at least a 55% positive-spread hit rate.
+- `optimizer_validation_status`: fail-closed dashboard gate that keeps the optimizer research-only unless the net walk-forward optimizer beats benchmark Sharpe, has positive information ratio versus 60/40, equal-weight, and risk-parity benchmarks, and remains positive after removing crypto or commodities.
 
 ## Implemented improvement layers
 
 1. Data freshness and source transparency: keep the visible per-source update table, expose the latest completed data month, and refresh committed snapshots through the scheduled/manual GitHub Action.
-2. Probability and market-outcome calibration: walk-forward test scenario probabilities, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, and hit-rate diagnostics.
-3. Investment-readiness gating: expose the market-validation status in the header and keep the dashboard in research-only mode when realized ranking evidence is weak.
+2. Probability and market-outcome calibration: walk-forward test scenario probabilities, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, hit-rate diagnostics, multiple score rules, and ex-crypto / ex-commodities variants.
+3. Investment-readiness gating: expose ranking and optimizer validation status in the header and keep the dashboard in research-only mode when realized market evidence is weak.
 4. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
 5. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.
 6. Visualization and design quality: standardize colors, improve contrast, make positive/negative/unknown states visually consistent, tighten chart labels, round table values everywhere, and run desktop/mobile screenshot checks before relying on the dashboard.
-7. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, and downside-aware robust rankings.
+7. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, a candidate screen, downside-aware robust rankings, and walk-forward optimizer validation versus benchmark portfolios.
