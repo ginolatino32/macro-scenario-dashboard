@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
-BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v4"
+BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v5"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -544,6 +544,7 @@ pit_flags = (
     if not point_in_time_audit.empty and "lookahead_flag" in point_in_time_audit
     else np.nan
 )
+pit_status = "Unavailable" if not np.isfinite(pit_flags) else ("Pass" if pit_flags == 0 else "Fail")
 refresh_date = pd.to_datetime(state.get("updated_at_utc", refresh_info.get("updated_at_utc")), errors="coerce")
 cache_age_hours = (
     (pd.Timestamp.now(tz="UTC").tz_localize(None) - refresh_date.tz_localize(None)).total_seconds() / 3600.0
@@ -559,7 +560,7 @@ st.warning(
     "Mode: Research only | "
     f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
     f"Run ID: {dashboard_run_id()} | "
-    f"Point-in-time audit: {'Pass' if pit_flags == 0 else 'Fail'} | "
+    f"Point-in-time audit: {pit_status} | "
     f"Vintage status: latest-revised proxies, not ALFRED vintages | "
     f"Transaction costs: {backtest_cost_bps} bps | "
     f"Cache age: {cache_age_hours:.1f}h | "
