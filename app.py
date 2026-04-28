@@ -392,10 +392,20 @@ def universe_quality_table(
     universe: pd.DataFrame,
     prices: pd.DataFrame,
     price_quality: pd.DataFrame,
+    source_audit: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     returns = np.exp(np.log(prices / prices.shift(1)).replace([np.inf, -np.inf], np.nan)) - 1.0
     rows = []
     quality = price_quality.set_index("series") if not price_quality.empty else pd.DataFrame()
+    source_excluded: set[str] = set()
+    if source_audit is not None and not source_audit.empty:
+        audit = source_audit.copy()
+        if {"dashboard_series", "series_type", "exclude_flag"}.issubset(audit.columns):
+            asset_audit = audit[
+                audit["series_type"].astype(str).str.contains("asset price", case=False, na=False)
+                & audit["exclude_flag"].fillna(False).astype(bool)
+            ]
+            source_excluded = set(asset_audit["dashboard_series"].astype(str))
     for _, row in universe.iterrows():
         ticker = str(row["ticker"])
         bucket = str(row["bucket"])
@@ -411,9 +421,14 @@ def universe_quality_table(
         asset_returns = returns[ticker].dropna() if ticker in returns else pd.Series(dtype=float)
         annual_vol = float(asset_returns.std(ddof=0) * np.sqrt(12.0) * 100.0) if not asset_returns.empty else np.nan
         max_abs_month = float(asset_returns.abs().max() * 100.0) if not asset_returns.empty else np.nan
-        long_only = investability >= 55.0 and q.get("status") in {"Current", "Stale"}
-        long_short = investability >= 70.0 and q.get("status") == "Current" and bucket != "Crypto"
-        if q.get("status") != "Current":
+        source_exclude = ticker in source_excluded
+        if source_exclude:
+            investability = min(investability, 49.0)
+        long_only = investability >= 55.0 and q.get("status") in {"Current", "Stale"} and not source_exclude
+        long_short = investability >= 70.0 and q.get("status") == "Current" and bucket != "Crypto" and not source_exclude
+        if source_exclude:
+            reason = "excluded by raw-source stale/flatline audit"
+        elif q.get("status") != "Current":
             reason = "stale or missing price history"
         elif investability < 55.0:
             reason = "research-only: low investability score"
@@ -435,6 +450,7 @@ def universe_quality_table(
                 "cost_score": cost,
                 "data_quality_score": data_quality,
                 "investability_score": investability,
+                "raw_source_excluded": bool(source_exclude),
                 "annual_vol_pct": annual_vol,
                 "max_abs_month_pct": max_abs_month,
                 "allowed_long_only": bool(long_only),
@@ -501,7 +517,8 @@ expected_month = pd.to_datetime(state.get("last_complete_month") or refresh_info
 asset_names = universe.set_index("ticker")["name"].to_dict()
 price_quality = data_quality_table(prices, expected_month, asset_names)
 factor_quality = data_quality_table(factors, expected_month)
-universe_quality = universe_quality_table(universe, prices, price_quality)
+source_audit_exact = load_source_audit()
+universe_quality = universe_quality_table(universe, prices, price_quality, source_audit_exact)
 
 with st.sidebar:
     st.header("Data")
@@ -1209,11 +1226,12 @@ with tab4:
     st.caption("Scores are operational guardrails for dashboard use. They combine data freshness, proxy coverage, liquidity, and implementation-cost heuristics.")
     uq = universe_quality.copy()
     uq["optimizer_included"] = uq["ticker"].isin(active_universe["ticker"])
-    g1, g2, g3, g4 = st.columns(4)
+    g1, g2, g3, g4, g5 = st.columns(5)
     g1.metric("Eligible now", f"{int(uq['optimizer_included'].sum())}/{len(uq)}")
     g2.metric("Research-only", f"{int((~uq['allowed_long_only']).sum())}")
     g3.metric("Long/short eligible", f"{int(uq['allowed_long_short'].sum())}")
-    g4.metric("Median investability", f"{uq['investability_score'].median():.0f}")
+    g4.metric("Raw-source excluded", f"{int(uq['raw_source_excluded'].sum())}")
+    g5.metric("Median investability", f"{uq['investability_score'].median():.0f}")
     st.dataframe(
         format_pct_columns(
             uq[
@@ -1223,6 +1241,7 @@ with tab4:
                     "bucket",
                     "optimizer_included",
                     "status",
+                    "raw_source_excluded",
                     "investability_score",
                     "proxy_quality_score",
                     "liquidity_score",
@@ -1567,7 +1586,7 @@ with tab8:
     st.caption(f"Tracked Yahoo/FRED symbols: {yahoo_count}. Amber status means the latest rows are present, but proxy and vintage limitations remain.")
     st.dataframe(provenance, width="stretch")
     st.markdown("**Stale and flatline source audit**")
-    source_audit = load_source_audit()
+    source_audit = source_audit_exact.copy()
     using_source_audit_fallback = source_audit.empty
     if source_audit.empty:
         source_audit = pd.concat(
