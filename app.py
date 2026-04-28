@@ -4,6 +4,7 @@ import json
 import os
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+import model as model_module
 from model import (
     FACTOR_COLUMNS,
     build_model,
@@ -22,7 +24,6 @@ from model import (
     scenario_overlay_breakdown,
     top_bottom_by_bucket,
     walk_forward_market_outcome_validation,
-    walk_forward_market_regime_calibration,
     walk_forward_optimizer_validation,
     walk_forward_scenario_calibration,
     walk_forward_predicted_scenario_portfolio,
@@ -172,7 +173,11 @@ def build_market_regime_calibration(
     scenarios: pd.DataFrame,
     half_life: float,
 ):
-    return walk_forward_market_regime_calibration(
+    calibrator = getattr(model_module, "walk_forward_market_regime_calibration", None)
+    if calibrator is None:
+        empty = pd.DataFrame()
+        return SimpleNamespace(summary=empty, probability_buckets=empty, recent_predictions=empty, market_outcomes=empty)
+    return calibrator(
         prices,
         factors,
         universe,
