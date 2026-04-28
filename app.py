@@ -526,6 +526,7 @@ predicted_portfolio_backtest = build_predicted_portfolio_backtest(
     transaction_cost_bps=float(backtest_cost_bps),
     cache_version=BACKTEST_CACHE_VERSION,
 )
+point_in_time_audit = getattr(predicted_portfolio_backtest, "point_in_time_audit", pd.DataFrame()).copy()
 result.trade_basket = result.trade_basket.copy()
 if not result.trade_basket.empty:
     # Rebuild display basket from the full expected table if the user changes basket size.
@@ -539,8 +540,8 @@ auto_probs = auto_regime.probabilities.copy()
 modal_row = auto_probs[~auto_probs["is_unknown"]].sort_values("probability", ascending=False).iloc[0]
 unknown_probability = float(auto_probs.loc[auto_probs["is_unknown"], "probability"].sum())
 pit_flags = (
-    predicted_portfolio_backtest.point_in_time_audit["lookahead_flag"].sum()
-    if not predicted_portfolio_backtest.point_in_time_audit.empty
+    point_in_time_audit["lookahead_flag"].sum()
+    if not point_in_time_audit.empty and "lookahead_flag" in point_in_time_audit
     else np.nan
 )
 refresh_date = pd.to_datetime(state.get("updated_at_utc", refresh_info.get("updated_at_utc")), errors="coerce")
@@ -1432,7 +1433,7 @@ with tab7:
         "Checks the mechanical backtest boundary: every portfolio decision must use only rows dated on or before the rebalance month-end. "
         "Macro data is still latest-revised public proxy data, not true vintage ALFRED data."
     )
-    audit = predicted_portfolio_backtest.point_in_time_audit.copy()
+    audit = point_in_time_audit.copy()
     if audit.empty:
         st.warning("No predicted-portfolio audit rows are available.")
     else:
