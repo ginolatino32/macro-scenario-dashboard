@@ -1,0 +1,51 @@
+ticker,name,bucket,benchmark
+ACWI,Global Equities,Asset Class,
+AGG,Aggregate Bonds,Asset Class,
+DBC,Broad Commodities,Asset Class,
+HYG,High Yield Credit,Asset Class,
+BIL,Cash / T-Bills,Asset Class,
+BTC,Bitcoin,Crypto,
+ETH,Ethereum,Crypto,BTC
+SPY,US Equities,Equity Region,ACWI
+EEM,Emerging Markets,Equity Region,ACWI
+EFA,Developed ex-US,Equity Region,ACWI
+EWJ,Japan,Equity Region,ACWI
+EWU,UK,Equity Region,ACWI
+EWL,Switzerland,Equity Region,ACWI
+EPP,Pacific ex-Japan,Equity Region,ACWI
+XLK,Technology,Equity Sector,ACWI
+SOXX,Semiconductors,Equity Sector,ACWI
+XLE,Energy,Equity Sector,ACWI
+XLB,Materials,Equity Sector,ACWI
+XLI,Industrials,Equity Sector,ACWI
+XLY,Consumer Discretionary,Equity Sector,ACWI
+XLP,Consumer Staples,Equity Sector,ACWI
+XLV,Healthcare,Equity Sector,ACWI
+XLU,Utilities,Equity Sector,ACWI
+VNQ,REITs,Equity Sector,ACWI
+XHB,Homebuilders,Equity Sector,ACWI
+SHY,Front-End Treasuries,Fixed Income,AGG
+IEF,Treasury Belly,Fixed Income,AGG
+TLT,Long Treasuries,Fixed Income,AGG
+TIP,TIPS,Fixed Income,AGG
+LQD,Investment Grade Credit,Fixed Income,AGG
+EMB,EM Bonds,Fixed Income,AGG
+UUP,US Dollar,FX,
+FXA,Australian Dollar,FX,UUP
+FXC,Canadian Dollar,FX,UUP
+FXF,Swiss Franc,FX,UUP
+FXY,Yen,FX,UUP
+FXE,Euro,FX,UUP
+GLD,Gold,Commodity,DBC
+USO,Oil,Commodity,DBC
+CPER,Copper,Commodity,DBC
+CORN,Corn,Commodity,DBC
+WEAT,Wheat,Commodity,DBC
+BAL,Cotton,Commodity,DBC
+JO,Coffee,Commodity,DBC
+IWM,Small Caps,Style Factor,ACWI
+MTUM,Momentum,Style Factor,ACWI
+QUAL,Quality,Style Factor,ACWI
+VLUE,Value,Style Factor,ACWI
+USMV,Minimum Volatility,Style Factor,ACWI
+SPHB,High Beta,Style Factor,ACWI
