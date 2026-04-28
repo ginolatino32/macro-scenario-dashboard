@@ -77,6 +77,7 @@ class PortfolioBacktestResult:
     rolling_metrics: pd.DataFrame
     stress_months: pd.DataFrame
     cost_sensitivity: pd.DataFrame
+    point_in_time_audit: pd.DataFrame
 
 
 def load_wide_csv(path: str | Path) -> pd.DataFrame:
@@ -1231,6 +1232,7 @@ def walk_forward_predicted_scenario_portfolio(
     scenario_lookup = scenarios.set_index("scenario")
     meta = universe.set_index("ticker")[["name", "bucket"]]
     rows: list[dict[str, object]] = []
+    audit_rows: list[dict[str, object]] = []
     weight_rows: list[pd.DataFrame] = []
     previous_weights = pd.Series(dtype=float)
 
@@ -1241,6 +1243,8 @@ def walk_forward_predicted_scenario_portfolio(
         price_history = prices.loc[prices.index <= as_of]
         factor_history = factors.loc[factors.index <= as_of]
         next_returns = returns.loc[next_date]
+        price_max_date = price_history.index.max() if not price_history.empty else pd.NaT
+        factor_max_date = factor_history.index.max() if not factor_history.empty else pd.NaT
 
         try:
             probabilities = estimate_scenario_probabilities(factor_history, scenarios)
@@ -1292,6 +1296,23 @@ def walk_forward_predicted_scenario_portfolio(
                 "n_shorts": int((weights < 0).sum()),
             }
         )
+        audit_rows.append(
+            {
+                "as_of": as_of,
+                "return_date": next_date,
+                "price_history_max_date": price_max_date,
+                "factor_history_max_date": factor_max_date,
+                "decision_before_return": bool(as_of < next_date),
+                "prices_lag_days": int((as_of - price_max_date).days) if pd.notna(price_max_date) else np.nan,
+                "factors_lag_days": int((as_of - factor_max_date).days) if pd.notna(factor_max_date) else np.nan,
+                "lookahead_flag": bool(
+                    pd.notna(price_max_date)
+                    and pd.notna(factor_max_date)
+                    and (price_max_date > as_of or factor_max_date > as_of or next_date <= as_of)
+                ),
+                "data_vintage_note": "latest-revised public proxy data; no ALFRED point-in-time vintage layer",
+            }
+        )
 
         weight_detail = weights.rename("weight").to_frame()
         weight_detail["as_of"] = as_of
@@ -1316,6 +1337,7 @@ def walk_forward_predicted_scenario_portfolio(
             rolling_metrics=empty,
             stress_months=empty,
             cost_sensitivity=empty,
+            point_in_time_audit=empty,
         )
 
     returns_table = returns_table.sort_values("return_date").reset_index(drop=True)
@@ -1360,6 +1382,7 @@ def walk_forward_predicted_scenario_portfolio(
     rolling_metrics = _rolling_backtest_metrics(returns_table)
     stress_months = _stress_months(returns_table)
     cost_sensitivity = _cost_sensitivity(returns_table)
+    point_in_time_audit = pd.DataFrame(audit_rows).sort_values("return_date").reset_index(drop=True)
     return PortfolioBacktestResult(
         returns=returns_table,
         equity=equity,
@@ -1371,6 +1394,7 @@ def walk_forward_predicted_scenario_portfolio(
         rolling_metrics=rolling_metrics,
         stress_months=stress_months,
         cost_sensitivity=cost_sensitivity,
+        point_in_time_audit=point_in_time_audit,
     )
 
 

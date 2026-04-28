@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
-BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v3"
+BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v4"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -202,6 +203,40 @@ def load_update_state() -> dict:
     return read_update_state_file()
 
 
+def dashboard_run_id() -> str:
+    digest = hashlib.sha256()
+    for path in [
+        ROOT / "app.py",
+        ROOT / "model.py",
+        DATA / "prices.csv",
+        DATA / "factors.csv",
+        CONFIG / "universe.csv",
+        CONFIG / "scenarios.csv",
+    ]:
+        if path.exists():
+            digest.update(path.name.encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+def status_label(current: int, total: int, amber_reason: bool = False) -> str:
+    if total <= 0:
+        return "Red"
+    if current == total and not amber_reason:
+        return "Green"
+    if current > 0:
+        return "Amber"
+    return "Red"
+
+
+def confidence_label(value: float) -> str:
+    if value >= 0.70:
+        return "High"
+    if value >= 0.45:
+        return "Medium"
+    return "Low"
+
+
 def data_freshness_table(refresh_info: dict, prices: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
     state = load_update_state()
     rows = [
@@ -280,6 +315,94 @@ def data_quality_table(frame: pd.DataFrame, expected_last_month: pd.Timestamp | 
     return out.drop(columns=["_status_rank"])
 
 
+def bucket_liquidity_score(bucket: str) -> float:
+    scores = {
+        "Asset Class": 92.0,
+        "Equity Sector": 90.0,
+        "Equity Region": 86.0,
+        "Fixed Income": 84.0,
+        "Style Factor": 82.0,
+        "Commodity": 72.0,
+        "FX": 70.0,
+        "Crypto": 55.0,
+    }
+    return scores.get(str(bucket), 65.0)
+
+
+def bucket_cost_score(bucket: str) -> float:
+    scores = {
+        "Asset Class": 90.0,
+        "Equity Sector": 88.0,
+        "Equity Region": 82.0,
+        "Fixed Income": 82.0,
+        "Style Factor": 78.0,
+        "Commodity": 70.0,
+        "FX": 68.0,
+        "Crypto": 45.0,
+    }
+    return scores.get(str(bucket), 65.0)
+
+
+def universe_quality_table(
+    universe: pd.DataFrame,
+    prices: pd.DataFrame,
+    price_quality: pd.DataFrame,
+) -> pd.DataFrame:
+    returns = np.exp(np.log(prices / prices.shift(1)).replace([np.inf, -np.inf], np.nan)) - 1.0
+    rows = []
+    quality = price_quality.set_index("series") if not price_quality.empty else pd.DataFrame()
+    for _, row in universe.iterrows():
+        ticker = str(row["ticker"])
+        bucket = str(row["bucket"])
+        q = quality.loc[ticker] if ticker in quality.index else pd.Series(dtype=object)
+        coverage = float(q.get("coverage_pct", 0.0) or 0.0)
+        stale_months = q.get("stale_months", np.nan)
+        stale_penalty = min(float(stale_months) * 10.0, 40.0) if pd.notna(stale_months) else 40.0
+        proxy_quality = float(np.clip(coverage - stale_penalty, 0.0, 100.0))
+        liquidity = bucket_liquidity_score(bucket)
+        cost = bucket_cost_score(bucket)
+        data_quality = proxy_quality
+        investability = 0.4 * liquidity + 0.3 * proxy_quality + 0.2 * cost + 0.1 * data_quality
+        asset_returns = returns[ticker].dropna() if ticker in returns else pd.Series(dtype=float)
+        annual_vol = float(asset_returns.std(ddof=0) * np.sqrt(12.0) * 100.0) if not asset_returns.empty else np.nan
+        max_abs_month = float(asset_returns.abs().max() * 100.0) if not asset_returns.empty else np.nan
+        long_only = investability >= 55.0 and q.get("status") in {"Current", "Stale"}
+        long_short = investability >= 70.0 and q.get("status") == "Current" and bucket != "Crypto"
+        if q.get("status") != "Current":
+            reason = "stale or missing price history"
+        elif investability < 55.0:
+            reason = "research-only: low investability score"
+        elif not long_short:
+            reason = "long-only or research-only liquidity/cost profile"
+        else:
+            reason = "eligible"
+        rows.append(
+            {
+                "ticker": ticker,
+                "name": row.get("name", ticker),
+                "bucket": bucket,
+                "status": q.get("status", "No data"),
+                "first_valid": q.get("first_valid", pd.NaT),
+                "last_valid": q.get("last_valid", pd.NaT),
+                "coverage_pct": coverage,
+                "proxy_quality_score": proxy_quality,
+                "liquidity_score": liquidity,
+                "cost_score": cost,
+                "data_quality_score": data_quality,
+                "investability_score": investability,
+                "annual_vol_pct": annual_vol,
+                "max_abs_month_pct": max_abs_month,
+                "allowed_long_only": bool(long_only),
+                "allowed_long_short": bool(long_short),
+                "reason": reason,
+            }
+        )
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    return out.sort_values(["allowed_long_short", "investability_score", "ticker"], ascending=[True, True, True])
+
+
 def bucket_tilt_label(score: float) -> str:
     if score >= 0.35:
         return "Overweight"
@@ -328,6 +451,12 @@ else:
     )
 
 scenario_names = list(scenarios["scenario"])
+state = load_update_state()
+expected_month = pd.to_datetime(state.get("last_complete_month") or refresh_info.get("last_complete_month"), errors="coerce")
+asset_names = universe.set_index("ticker")["name"].to_dict()
+price_quality = data_quality_table(prices, expected_month, asset_names)
+factor_quality = data_quality_table(factors, expected_month)
+universe_quality = universe_quality_table(universe, prices, price_quality)
 
 with st.sidebar:
     st.header("Data")
@@ -361,9 +490,21 @@ with st.sidebar:
     top_n = st.slider("Top/bottom names", min_value=1, max_value=10, value=3, step=1)
     basket_n = st.slider("Basket names per side", min_value=3, max_value=10, value=6, step=1)
     backtest_cost_bps = st.slider("Backtest cost, bps", min_value=0, max_value=50, value=0, step=1)
+    apply_investability_gate = st.checkbox("Apply investability gate", value=True)
+    min_investability_score = st.slider("Minimum investability score", min_value=0, max_value=100, value=60, step=5)
 
-result = build_model(prices, factors, universe, scenario, half_life=float(half_life))
-scenario_expected, scenario_conviction = build_scenario_matrices(prices, factors, universe, scenarios, half_life=float(half_life))
+eligible_tickers = universe_quality[
+    (universe_quality["status"] == "Current")
+    & (universe_quality["investability_score"] >= float(min_investability_score))
+    & (universe_quality["allowed_long_only"])
+]["ticker"].tolist()
+active_universe = universe[universe["ticker"].isin(eligible_tickers)].copy() if apply_investability_gate else universe.copy()
+if active_universe.empty:
+    st.warning("Investability gate excluded the full universe. Falling back to all assets for this run.")
+    active_universe = universe.copy()
+
+result = build_model(prices, factors, active_universe, scenario, half_life=float(half_life))
+scenario_expected, scenario_conviction = build_scenario_matrices(prices, factors, active_universe, scenarios, half_life=float(half_life))
 auto_regime = estimate_scenario_probabilities(factors, scenarios)
 probability_rank = probability_weighted_asset_ranking(scenario_expected, auto_regime.probabilities, result.expected)
 overlay_breakdown = scenario_overlay_breakdown(auto_regime.probabilities, scenarios)
@@ -373,12 +514,12 @@ optimized_portfolio = optimize_probability_weighted_portfolio(
     auto_regime.probabilities,
     result.expected,
     result.rel_returns,
-    universe,
+    active_universe,
 )
 predicted_portfolio_backtest = build_predicted_portfolio_backtest(
     prices,
     factors,
-    universe,
+    active_universe,
     scenarios,
     half_life=float(half_life),
     n_each=basket_n,
@@ -392,13 +533,40 @@ if not result.trade_basket.empty:
 
     result.trade_basket = build_trade_basket(result.expected, n_each=basket_n, max_per_bucket=2)
 
-c1, c2, c3, c4, c5 = st.columns(5)
 best_bucket, worst_bucket = best_worst_bucket(result.bucket_summary)
 basket_edge = result.trade_basket["expected_contribution_pct"].sum() if not result.trade_basket.empty else 0.0
 auto_probs = auto_regime.probabilities.copy()
 modal_row = auto_probs[~auto_probs["is_unknown"]].sort_values("probability", ascending=False).iloc[0]
 unknown_probability = float(auto_probs.loc[auto_probs["is_unknown"], "probability"].sum())
-c1.metric("Assets modeled", f"{len(result.expected):,}")
+pit_flags = (
+    predicted_portfolio_backtest.point_in_time_audit["lookahead_flag"].sum()
+    if not predicted_portfolio_backtest.point_in_time_audit.empty
+    else np.nan
+)
+refresh_date = pd.to_datetime(state.get("updated_at_utc", refresh_info.get("updated_at_utc")), errors="coerce")
+cache_age_hours = (
+    (pd.Timestamp.now(tz="UTC").tz_localize(None) - refresh_date.tz_localize(None)).total_seconds() / 3600.0
+    if pd.notna(refresh_date)
+    else np.nan
+)
+data_status = status_label(
+    int((price_quality["status"] == "Current").sum()) + int((factor_quality["status"] == "Current").sum()),
+    len(price_quality) + len(factor_quality),
+    amber_reason=True,
+)
+st.warning(
+    "Mode: Research only | "
+    f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
+    f"Run ID: {dashboard_run_id()} | "
+    f"Point-in-time audit: {'Pass' if pit_flags == 0 else 'Fail'} | "
+    f"Vintage status: latest-revised proxies, not ALFRED vintages | "
+    f"Transaction costs: {backtest_cost_bps} bps | "
+    f"Cache age: {cache_age_hours:.1f}h | "
+    f"Data status: {data_status} | "
+    f"Model confidence: {confidence_label(auto_regime.confidence)}"
+)
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Assets modeled", f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}")
 c2.metric("Auto modal scenario", str(modal_row["scenario"]))
 c3.metric("Unknown / mixed", f"{unknown_probability * 100:.1f}%")
 c4.metric("Auto confidence", f"{auto_regime.confidence * 100:.1f}%")
@@ -989,6 +1157,49 @@ with tab3:
         )
 
 with tab4:
+    st.subheader("Universe quality and investability gate")
+    st.caption("Scores are operational guardrails for dashboard use. They combine data freshness, proxy coverage, liquidity, and implementation-cost heuristics.")
+    uq = universe_quality.copy()
+    uq["optimizer_included"] = uq["ticker"].isin(active_universe["ticker"])
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Eligible now", f"{int(uq['optimizer_included'].sum())}/{len(uq)}")
+    g2.metric("Research-only", f"{int((~uq['allowed_long_only']).sum())}")
+    g3.metric("Long/short eligible", f"{int(uq['allowed_long_short'].sum())}")
+    g4.metric("Median investability", f"{uq['investability_score'].median():.0f}")
+    st.dataframe(
+        format_pct_columns(
+            uq[
+                [
+                    "ticker",
+                    "name",
+                    "bucket",
+                    "optimizer_included",
+                    "status",
+                    "investability_score",
+                    "proxy_quality_score",
+                    "liquidity_score",
+                    "cost_score",
+                    "coverage_pct",
+                    "annual_vol_pct",
+                    "max_abs_month_pct",
+                    "allowed_long_only",
+                    "allowed_long_short",
+                    "reason",
+                ]
+            ],
+            [
+                "investability_score",
+                "proxy_quality_score",
+                "liquidity_score",
+                "cost_score",
+                "coverage_pct",
+                "annual_vol_pct",
+                "max_abs_month_pct",
+            ],
+        ),
+        width="stretch",
+    )
+
     st.subheader("Top and bottom expected outperformers by bucket")
     grouped = top_bottom_by_bucket(result.expected, n=top_n)
     for bucket, tb in grouped.items():
@@ -1215,6 +1426,28 @@ with tab7:
                 ),
                 width="stretch",
             )
+
+    st.subheader("Reproducibility and point-in-time audit")
+    st.caption(
+        "Checks the mechanical backtest boundary: every portfolio decision must use only rows dated on or before the rebalance month-end. "
+        "Macro data is still latest-revised public proxy data, not true vintage ALFRED data."
+    )
+    audit = predicted_portfolio_backtest.point_in_time_audit.copy()
+    if audit.empty:
+        st.warning("No predicted-portfolio audit rows are available.")
+    else:
+        lookahead_count = int(audit["lookahead_flag"].sum())
+        a1, a2, a3, a4, a5 = st.columns(5)
+        a1.metric("Audit rows", f"{len(audit):,}")
+        a2.metric("Lookahead flags", f"{lookahead_count}")
+        a3.metric("Acceptance", "Pass" if lookahead_count == 0 else "Fail")
+        a4.metric("Run ID", dashboard_run_id())
+        a5.metric("Cache age", f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a")
+        st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0` and vintage-data limitations are disclosed.")
+        st.dataframe(
+            audit.sort_values("return_date", ascending=False).head(36),
+            width="stretch",
+        )
 
     st.subheader("Correlation heatmap: relative returns vs macro factors")
     corr = result.corr.join(universe.set_index("ticker")[["name", "bucket"]], how="left")
