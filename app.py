@@ -289,6 +289,61 @@ def confidence_label(value: float) -> str:
     return "Low"
 
 
+def market_validation_summary(market_validation: pd.DataFrame) -> dict:
+    if market_validation.empty:
+        return {
+            "label": "Unavailable",
+            "severity": "warning",
+            "months": 0,
+            "rank_ic_mean": np.nan,
+            "rank_ic_t": np.nan,
+            "spread_mean": np.nan,
+            "positive_spread_pct": np.nan,
+            "top_hit_pct": np.nan,
+            "message": "Not enough aligned market history to validate the asset ranking engine.",
+        }
+
+    rank_ic_mean = float(market_validation["rank_ic"].mean())
+    rank_ic_se = (
+        float(market_validation["rank_ic"].std(ddof=0) / np.sqrt(len(market_validation)))
+        if len(market_validation) > 1
+        else np.nan
+    )
+    rank_ic_t = rank_ic_mean / rank_ic_se if np.isfinite(rank_ic_se) and rank_ic_se > 0 else np.nan
+    spread_mean = float(market_validation["top_minus_bottom_return_pct"].mean())
+    positive_spread_pct = float(market_validation["positive_spread"].mean() * 100.0)
+    top_hit_pct = float(market_validation["top_hit_rate_pct"].mean())
+
+    passes = (
+        len(market_validation) >= 36
+        and np.isfinite(rank_ic_t)
+        and rank_ic_t >= 2.0
+        and spread_mean > 0.0
+        and positive_spread_pct >= 55.0
+    )
+    watch = len(market_validation) >= 36 and spread_mean > 0.0 and positive_spread_pct >= 50.0
+    label = "Validated" if passes else ("Watch" if watch else "Weak")
+    severity = "success" if passes else ("warning" if watch else "error")
+    if passes:
+        message = "Ranking engine passes the current market-outcome validation gate."
+    elif watch:
+        message = "Ranking engine has a positive spread, but evidence is not strong enough for institutional confidence."
+    else:
+        message = "Ranking engine is not validated strongly enough for capital allocation; keep outputs research-only."
+
+    return {
+        "label": label,
+        "severity": severity,
+        "months": len(market_validation),
+        "rank_ic_mean": rank_ic_mean,
+        "rank_ic_t": rank_ic_t,
+        "spread_mean": spread_mean,
+        "positive_spread_pct": positive_spread_pct,
+        "top_hit_pct": top_hit_pct,
+        "message": message,
+    }
+
+
 def data_freshness_table(refresh_info: dict, prices: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
     state = load_update_state()
     rows = [
@@ -668,6 +723,22 @@ data_status = status_label(
     amber_reason=True,
 )
 data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
+market_validation_status = market_validation_summary(market_outcome_validation)
+rank_ic_t_display = (
+    f"{market_validation_status['rank_ic_t']:.2f}"
+    if np.isfinite(market_validation_status["rank_ic_t"])
+    else "n/a"
+)
+spread_display = (
+    f"{market_validation_status['spread_mean']:.2f}%"
+    if np.isfinite(market_validation_status["spread_mean"])
+    else "n/a"
+)
+hit_display = (
+    f"{market_validation_status['positive_spread_pct']:.1f}%"
+    if np.isfinite(market_validation_status["positive_spread_pct"])
+    else "n/a"
+)
 st.warning(
     "Mode: Research only | "
     f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
@@ -677,14 +748,16 @@ st.warning(
     f"Transaction costs: {backtest_cost_bps} bps | "
     f"Cache age: {cache_age_hours:.1f}h | "
     f"Data status: {data_status_display} | "
-    f"Model confidence: {confidence_label(auto_regime.confidence)}"
+    f"Regime confidence: {confidence_label(auto_regime.confidence)} | "
+    f"Market validation: {market_validation_status['label']} "
+    f"(IC t {rank_ic_t_display}, spread {spread_display}, hit {hit_display})"
 )
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Assets modeled", f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}")
 c2.metric("Auto modal scenario", str(modal_row["scenario"]))
 c3.metric("Unknown / mixed", f"{unknown_probability * 100:.1f}%")
-c4.metric("Auto confidence", f"{auto_regime.confidence * 100:.1f}%")
-c5.metric("Median model R²", f"{result.expected['model_r2'].median():.2f}")
+c4.metric("Regime confidence", f"{auto_regime.confidence * 100:.1f}%")
+c5.metric("Market validation", str(market_validation_status["label"]))
 
 st.info(scenario_summary_line(scenario))
 st.caption(
@@ -1528,18 +1601,27 @@ with tab7:
     if market_validation.empty:
         st.warning("Not enough aligned market history to validate probability-weighted rankings against realized asset returns.")
     else:
-        rank_ic_mean = float(market_validation["rank_ic"].mean())
-        rank_ic_se = float(market_validation["rank_ic"].std(ddof=0) / np.sqrt(len(market_validation))) if len(market_validation) > 1 else np.nan
-        rank_ic_t = rank_ic_mean / rank_ic_se if np.isfinite(rank_ic_se) and rank_ic_se > 0 else np.nan
-        spread_mean = float(market_validation["top_minus_bottom_return_pct"].mean())
-        positive_spread = float(market_validation["positive_spread"].mean() * 100.0)
-        top_hit = float(market_validation["top_hit_rate_pct"].mean())
+        rank_ic_mean = market_validation_status["rank_ic_mean"]
+        rank_ic_t = market_validation_status["rank_ic_t"]
+        spread_mean = market_validation_status["spread_mean"]
+        positive_spread = market_validation_status["positive_spread_pct"]
+        top_hit = market_validation_status["top_hit_pct"]
         v1, v2, v3, v4, v5 = st.columns(5)
         v1.metric("Validation months", f"{len(market_validation):,}")
         v2.metric("Avg rank IC", f"{rank_ic_mean:.2f}")
         v3.metric("Rank IC t-stat", f"{rank_ic_t:.2f}" if np.isfinite(rank_ic_t) else "n/a")
         v4.metric("Top-bottom spread", f"{spread_mean:.2f}%")
         v5.metric("Positive spread hit", f"{positive_spread:.1f}%")
+        st.caption(
+            "Acceptance rule for validated rankings: at least 36 months, rank IC t-stat >= 2.0, "
+            "positive top-minus-bottom spread, and positive spread hit >= 55%."
+        )
+        if market_validation_status["severity"] == "success":
+            st.success(market_validation_status["message"])
+        elif market_validation_status["severity"] == "warning":
+            st.warning(market_validation_status["message"])
+        else:
+            st.error(market_validation_status["message"])
 
         st.markdown("**Recent market-outcome tests**")
         recent_market = market_validation.head(24).copy()

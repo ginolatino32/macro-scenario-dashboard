@@ -154,12 +154,14 @@ The dashboard also reports:
 - `weighted_regret`: average distance from the best asset in each scenario.
 - `fragility_score`: high upside in one scenario combined with high dispersion or downside.
 - `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for probability-weighted rankings.
+- `market_validation_status`: fail-closed dashboard gate that keeps rankings research-only unless the market-outcome test has enough history, a rank IC t-stat above 2.0, a positive top-minus-bottom spread, and at least a 55% positive-spread hit rate.
 
 ## Implemented improvement layers
 
 1. Data freshness and source transparency: keep the visible per-source update table, expose the latest completed data month, and refresh committed snapshots through the scheduled/manual GitHub Action.
 2. Probability and market-outcome calibration: walk-forward test scenario probabilities, then separately validate probability-weighted asset rankings against next-month realized cross-sectional returns with rank IC, top-minus-bottom spread, and hit-rate diagnostics.
-3. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
-4. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.
-5. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, and downside-aware robust rankings.
+3. Investment-readiness gating: expose the market-validation status in the header and keep the dashboard in research-only mode when realized ranking evidence is weak.
+4. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
+5. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.
 6. Visualization and design quality: standardize colors, improve contrast, make positive/negative/unknown states visually consistent, tighten chart labels, round table values everywhere, and run desktop/mobile screenshot checks before relying on the dashboard.
+7. Portfolio construction: move beyond long/short rankings by adding mixture covariance, asset caps, bucket caps, and downside-aware robust rankings.
