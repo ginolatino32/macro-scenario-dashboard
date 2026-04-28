@@ -156,7 +156,7 @@ The dashboard also reports:
 - `fragility_score`: high upside in one scenario combined with high dispersion or downside.
 - `market_outcome_validation`: walk-forward rank IC, top-minus-bottom spread, and realized hit rate for multiple ranking rules, including robust score, weighted expected return, rank stability, fragility, and regret-adjusted variants.
 - `market_validation_status`: fail-closed dashboard gate that keeps rankings research-only unless the robust-score market-outcome test has enough history, a rank IC t-stat above 2.0, a positive top-minus-bottom spread, and at least a 55% positive-spread hit rate.
-- `optimizer_validation_status`: fail-closed dashboard gate that keeps the optimizer research-only unless the net walk-forward optimizer beats benchmark Sharpe, has positive information ratio versus 60/40, equal-weight, and risk-parity benchmarks, and remains positive after removing crypto or commodities.
+- `optimizer_validation_status`: fail-closed dashboard gate that keeps the optimizer research-only unless the net walk-forward optimizer beats benchmark Sharpe, has positive information ratio versus 60/40, equal-weight, and risk-parity benchmarks, remains positive after removing crypto or commodities, and has at least 36 validation months. The deployed Streamlit view uses a shorter cloud-safe preview window until validation is precomputed offline.
 
 ## Implemented improvement layers
 

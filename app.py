@@ -225,7 +225,7 @@ def build_optimizer_validation(
         lookback=84,
         half_life=half_life,
         transaction_cost_bps=transaction_cost_bps,
-        max_periods=36,
+        max_periods=12,
     )
 
 
@@ -1332,6 +1332,7 @@ with tab3:
             "Optimizer gate: pass only if net Sharpe beats the main benchmarks, information ratio is positive versus 60/40, equal weight, "
             "and risk parity, and ex-crypto / ex-commodities variants remain positive."
         )
+        st.caption("Current Streamlit validation window: 12 months. The gate requires at least 36 months before it can pass.")
 
         opt_first_as_of = pd.to_datetime(opt_bt.returns["as_of"]).min()
         opt_equity = add_starting_value(opt_bt.equity, opt_first_as_of, value=1.0)
