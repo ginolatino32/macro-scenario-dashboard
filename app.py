@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
+SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v5"
 
 COLORS = {
@@ -94,7 +95,7 @@ def refresh_data_on_startup() -> dict:
 
     state = read_update_state_file()
     expected_month = last_completed_month_end().strftime("%Y-%m-%d")
-    if state.get("last_complete_month") == expected_month and state.get("prices_last_date") == expected_month:
+    if state.get("last_complete_month") == expected_month and state.get("prices_last_date") == expected_month and SOURCE_AUDIT_FILE.exists():
         payload = dict(state)
         payload.update({"ok": True, "skipped": True, "skip_reason": "already-current"})
         return payload
@@ -203,6 +204,16 @@ def load_update_state() -> dict:
     return read_update_state_file()
 
 
+def load_source_audit() -> pd.DataFrame:
+    if not SOURCE_AUDIT_FILE.exists():
+        return pd.DataFrame()
+    try:
+        audit = pd.read_csv(SOURCE_AUDIT_FILE, parse_dates=["last_true_trade_date", "last_resampled_date"])
+    except (ValueError, FileNotFoundError):
+        return pd.DataFrame()
+    return audit
+
+
 def dashboard_run_id() -> str:
     digest = hashlib.sha256()
     for path in [
@@ -210,6 +221,7 @@ def dashboard_run_id() -> str:
         ROOT / "model.py",
         DATA / "prices.csv",
         DATA / "factors.csv",
+        SOURCE_AUDIT_FILE,
         CONFIG / "universe.csv",
         CONFIG / "scenarios.csv",
     ]:
@@ -313,6 +325,28 @@ def data_quality_table(frame: pd.DataFrame, expected_last_month: pd.Timestamp | 
     out["_status_rank"] = out["status"].map(status_rank).fillna(3)
     out = out.sort_values(["_status_rank", "stale_months", "series"], ascending=[False, False, True])
     return out.drop(columns=["_status_rank"])
+
+
+def stale_flatline_fallback(frame: pd.DataFrame, names: dict[str, str] | None = None, label: str = "asset") -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for col in frame.columns:
+        series = frame[col].dropna()
+        if series.empty:
+            continue
+        recent = series.tail(6)
+        stale_months = (frame.index.max().year - series.index.max().year) * 12 + (frame.index.max().month - series.index.max().month)
+        rows.append(
+            {
+                "series": col,
+                "name": names.get(col, col) if names else col,
+                "area": label,
+                "last_resampled_date": series.index.max(),
+                "stale_months": int(max(stale_months, 0)),
+                "flatline_6m": bool(len(recent) >= 6 and recent.diff().abs().fillna(0.0).sum() == 0.0),
+                "source_audit_basis": "monthly fallback; refresh data to populate last true trade dates",
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def bucket_liquidity_score(bucket: str) -> float:
@@ -544,7 +578,7 @@ pit_flags = (
     if not point_in_time_audit.empty and "lookahead_flag" in point_in_time_audit
     else np.nan
 )
-pit_status = "Unavailable" if not np.isfinite(pit_flags) else ("Pass" if pit_flags == 0 else "Fail")
+date_boundary_status = "Unavailable" if not np.isfinite(pit_flags) else ("Pass" if pit_flags == 0 else "Fail")
 refresh_date = pd.to_datetime(state.get("updated_at_utc", refresh_info.get("updated_at_utc")), errors="coerce")
 cache_age_hours = (
     (pd.Timestamp.now(tz="UTC").tz_localize(None) - refresh_date.tz_localize(None)).total_seconds() / 3600.0
@@ -561,8 +595,8 @@ st.warning(
     "Mode: Research only | "
     f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
     f"Run ID: {dashboard_run_id()} | "
-    f"Point-in-time audit: {pit_status} | "
-    f"Vintage status: latest-revised proxies, not ALFRED vintages | "
+    f"Date-boundary check: {date_boundary_status} | "
+    f"Vintage status: Not available; latest-revised proxies, not ALFRED vintages | "
     f"Transaction costs: {backtest_cost_bps} bps | "
     f"Cache age: {cache_age_hours:.1f}h | "
     f"Data status: {data_status_display} | "
@@ -1430,10 +1464,10 @@ with tab7:
                 width="stretch",
             )
 
-    st.subheader("Reproducibility and point-in-time audit")
+    st.subheader("Reproducibility and mechanical date-boundary audit")
     st.caption(
         "Checks the mechanical backtest boundary: every portfolio decision must use only rows dated on or before the rebalance month-end. "
-        "Macro data is still latest-revised public proxy data, not true vintage ALFRED data."
+        "This is not a true macro release-vintage audit because the macro layer still uses latest-revised public proxy data."
     )
     audit = point_in_time_audit.copy()
     if audit.empty:
@@ -1446,7 +1480,7 @@ with tab7:
         a3.metric("Acceptance", "Pass" if lookahead_count == 0 else "Fail")
         a4.metric("Run ID", dashboard_run_id())
         a5.metric("Cache age", f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a")
-        st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0` and vintage-data limitations are disclosed.")
+        st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0`; vintage-data limitations remain separate and disclosed.")
         st.dataframe(
             audit.sort_values("return_date", ascending=False).head(36),
             width="stretch",
@@ -1514,13 +1548,25 @@ with tab8:
                 "area": "Backtest decisions",
                 "source": "Walk-forward model using rows dated on or before rebalance month-end",
                 "frequency": "Monthly",
-                "live_status": "Point-in-time row boundary audited",
+                "live_status": "Mechanical date-boundary audited",
                 "limitation": "Still uses latest-revised macro proxies and simplified transaction costs",
             },
         ]
     )
     st.caption(f"Tracked Yahoo/FRED symbols: {yahoo_count}. Amber status means the latest rows are present, but proxy and vintage limitations remain.")
     st.dataframe(provenance, width="stretch")
+    st.markdown("**Stale and flatline source audit**")
+    source_audit = load_source_audit()
+    if source_audit.empty:
+        source_audit = pd.concat(
+            [
+                stale_flatline_fallback(prices, asset_names, "asset price"),
+                stale_flatline_fallback(factors, label="macro factor"),
+            ],
+            ignore_index=True,
+        )
+    st.caption("Refresh data to populate exact last true trade dates from the raw daily Yahoo pull; the fallback uses stored monthly rows.")
+    st.dataframe(source_audit, width="stretch")
     st.dataframe(freshness, width="stretch")
 
     st.markdown("**Asset price quality**")

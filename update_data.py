@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
+SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 
 SOURCE = "yfinance_fred_public_macro_proxies_v1"
 DEFAULT_START = "2008-01-01"
@@ -110,7 +111,7 @@ def _close_field(raw: pd.DataFrame) -> pd.DataFrame:
     raise ValueError("Yahoo response did not contain Close or Adj Close data")
 
 
-def download_yahoo_monthly(symbols: list[str], start: str, end: pd.Timestamp) -> pd.DataFrame:
+def download_yahoo_daily(symbols: list[str], start: str, end: pd.Timestamp) -> pd.DataFrame:
     import yfinance as yf
 
     raw = yf.download(
@@ -128,8 +129,56 @@ def download_yahoo_monthly(symbols: list[str], start: str, end: pd.Timestamp) ->
         levels.columns = symbols
 
     levels = levels.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan)
+    return levels.sort_index()
+
+
+def monthly_from_daily(levels: pd.DataFrame, end: pd.Timestamp) -> pd.DataFrame:
     monthly = levels.sort_index().ffill().resample("ME").last().loc[:end]
     return monthly.dropna(how="all")
+
+
+def download_yahoo_monthly(symbols: list[str], start: str, end: pd.Timestamp) -> pd.DataFrame:
+    return monthly_from_daily(download_yahoo_daily(symbols, start=start, end=end), end=end)
+
+
+def _business_days_after(start: pd.Timestamp, end: pd.Timestamp) -> int:
+    if pd.isna(start) or pd.isna(end) or start >= end:
+        return 0
+    days = pd.bdate_range(start + pd.offsets.BDay(1), end)
+    return int(len(days))
+
+
+def build_source_audit(
+    daily_levels: pd.DataFrame,
+    monthly_levels: pd.DataFrame,
+    end: pd.Timestamp,
+    dashboard_symbol_map: dict[str, str],
+    flatline_months: int = 6,
+) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for symbol in sorted(monthly_levels.columns):
+        daily = daily_levels[symbol].dropna() if symbol in daily_levels else pd.Series(dtype=float)
+        monthly = monthly_levels[symbol].dropna()
+        last_true_date = daily.index.max() if not daily.empty else pd.NaT
+        last_resampled_date = monthly.index.max() if not monthly.empty else pd.NaT
+        stale_days = _business_days_after(pd.to_datetime(last_true_date), end) if pd.notna(last_true_date) else np.nan
+        if len(monthly) >= flatline_months:
+            recent = monthly.tail(flatline_months)
+            flatline = bool(recent.diff().abs().fillna(0.0).sum() == 0.0)
+        else:
+            flatline = False
+        rows.append(
+            {
+                "dashboard_series": dashboard_symbol_map.get(symbol, symbol),
+                "source_symbol": symbol,
+                "last_true_trade_date": last_true_date,
+                "last_resampled_date": last_resampled_date,
+                "stale_business_days": stale_days,
+                "flatline_6m": flatline,
+                "exclude_flag": bool((pd.notna(stale_days) and stale_days > 10) or flatline),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def download_fred_monthly(series_id: str, start: str, end: pd.Timestamp) -> pd.Series:
@@ -185,7 +234,8 @@ def update_data(
     end = _last_complete_month_end()
     price_symbols = {PRICE_TICKER_MAP.get(t, t) for t in universe["ticker"]}
     yahoo_symbols = sorted(price_symbols | set(YAHOO_FACTOR_SYMBOLS.values()))
-    yahoo_monthly = download_yahoo_monthly(yahoo_symbols, start=start, end=end)
+    yahoo_daily = download_yahoo_daily(yahoo_symbols, start=start, end=end)
+    yahoo_monthly = monthly_from_daily(yahoo_daily, end=end)
 
     fred_monthly = {
         name: download_fred_monthly(series_id, start=start, end=end)
@@ -203,6 +253,9 @@ def update_data(
 
     _write_csv(DATA / "prices.csv", prices)
     _write_csv(DATA / "factors.csv", factors)
+    reverse_price_map = {PRICE_TICKER_MAP.get(ticker, ticker): ticker for ticker in universe["ticker"]}
+    source_audit = build_source_audit(yahoo_daily, yahoo_monthly, end=end, dashboard_symbol_map=reverse_price_map)
+    source_audit.to_csv(SOURCE_AUDIT_FILE, index=False)
 
     payload = {
         "source": SOURCE,
@@ -217,6 +270,7 @@ def update_data(
         "factors_last_date": factors.index.max().strftime("%Y-%m-%d") if not factors.empty else None,
         "price_symbols": yahoo_symbols,
         "fred_series": FRED_SERIES,
+        "source_audit_rows": int(len(source_audit)),
     }
     _write_state(payload)
     return payload
