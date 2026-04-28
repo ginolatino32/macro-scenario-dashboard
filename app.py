@@ -1651,10 +1651,17 @@ with tab8:
         st.warning("Exact raw-source audit is not available in this app session; showing a conservative fallback from stored monthly rows.")
     else:
         excluded_count = int(pd.Series(source_audit.get("exclude_flag", False)).fillna(False).astype(bool).sum())
-        st.caption(
-            f"Exact raw-source audit loaded for {len(source_audit)} rows. "
-            f"Exclude flags: {excluded_count}. Yahoo daily sources use a 10-business-day lag rule; slower FRED liquidity data uses a wider documented lag rule."
-        )
+        source_audit_kind = str(state.get("source_audit_kind", "raw_source_audit"))
+        if source_audit_kind == "committed_monthly_snapshot_fallback":
+            st.caption(
+                f"Committed source-audit snapshot loaded for {len(source_audit)} rows. "
+                f"Exclude flags: {excluded_count}. The snapshot is fail-closed for flatlines/stale monthly rows; run update_data.py with Yahoo/FRED access for raw source-date audit rows."
+            )
+        else:
+            st.caption(
+                f"Exact raw-source audit loaded for {len(source_audit)} rows. "
+                f"Exclude flags: {excluded_count}. Yahoo daily sources use a 10-business-day lag rule; slower FRED liquidity data uses a wider documented lag rule."
+            )
     st.dataframe(source_audit, width="stretch")
     st.dataframe(freshness, width="stretch")
 
