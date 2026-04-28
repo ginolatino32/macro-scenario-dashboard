@@ -68,10 +68,36 @@ st.markdown(
 )
 
 
+def last_completed_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
+    if now is None:
+        now = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
+    month_end = now.to_period("M").to_timestamp("M")
+    if now.date() >= month_end.date():
+        return month_end
+    return (now - pd.offsets.MonthEnd(1)).normalize()
+
+
+def read_update_state_file() -> dict:
+    if not STATE_FILE.exists():
+        return {}
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
 @st.cache_data(ttl=6 * 60 * 60, show_spinner=False)
 def refresh_data_on_startup() -> dict:
     if os.getenv("MACRO_DASHBOARD_AUTO_UPDATE", "1") == "0":
-        return {"ok": True, "skipped": True, "updated_at_utc": "auto-update-disabled"}
+        return {"ok": True, "skipped": True, "skip_reason": "disabled", "updated_at_utc": "auto-update-disabled"}
+
+    state = read_update_state_file()
+    expected_month = last_completed_month_end().strftime("%Y-%m-%d")
+    if state.get("last_complete_month") == expected_month and state.get("prices_last_date") == expected_month:
+        payload = dict(state)
+        payload.update({"ok": True, "skipped": True, "skip_reason": "already-current"})
+        return payload
+
     try:
         from update_data import update_data
 
@@ -173,12 +199,7 @@ def add_starting_value(frame: pd.DataFrame, start_date: pd.Timestamp, value: flo
 
 
 def load_update_state() -> dict:
-    if not STATE_FILE.exists():
-        return {}
-    try:
-        return json.loads(STATE_FILE.read_text())
-    except json.JSONDecodeError:
-        return {}
+    return read_update_state_file()
 
 
 def data_freshness_table(refresh_info: dict, prices: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
@@ -293,7 +314,13 @@ except FileNotFoundError:
 if not refresh_info["ok"]:
     st.warning(f"Data refresh failed; using existing CSVs. {refresh_info['error']}")
 elif refresh_info.get("skipped"):
-    st.caption("Data auto-refresh disabled by MACRO_DASHBOARD_AUTO_UPDATE=0.")
+    if refresh_info.get("skip_reason") == "already-current":
+        st.caption(
+            f"Data already current through {refresh_info.get('prices_last_date') or refresh_info.get('last_complete_month')} "
+            f"from {refresh_info.get('source')}."
+        )
+    else:
+        st.caption("Data auto-refresh disabled by MACRO_DASHBOARD_AUTO_UPDATE=0.")
 else:
     st.caption(
         f"Data refreshed through {refresh_info.get('prices_last_date')} "
