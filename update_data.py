@@ -40,6 +40,16 @@ FRED_SERIES = {
     "liquidity": "M2SL",  # M2 money stock, seasonally adjusted.
 }
 
+FACTOR_SOURCE_COMPONENTS = {
+    "risk": ["ACWI", "IEF"],
+    "growth": ["XLI", "XLP"],
+    "inflation": ["TIP", "IEF"],
+    "rates": ["DGS2"],
+    "liquidity": ["M2SL"],
+    "dollar": ["UUP"],
+    "oil": ["USO"],
+}
+
 
 def _last_complete_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
     if now is None:
@@ -148,9 +158,50 @@ def _business_days_after(start: pd.Timestamp, end: pd.Timestamp) -> int:
     return int(len(days))
 
 
+def _flatline(series: pd.Series, flatline_months: int) -> bool:
+    clean = series.dropna()
+    if len(clean) < flatline_months:
+        return False
+    recent = clean.tail(flatline_months)
+    return bool(recent.diff().abs().fillna(0.0).sum() == 0.0)
+
+
+def _audit_row(
+    dashboard_series: str,
+    source_symbol: str,
+    series_type: str,
+    last_true_date: pd.Timestamp | pd.NaT,
+    last_resampled_date: pd.Timestamp | pd.NaT,
+    monthly: pd.Series,
+    end: pd.Timestamp,
+    source_audit_basis: str,
+    allowed_lag_business_days: int = 10,
+    flatline_months: int = 6,
+) -> dict[str, object]:
+    stale_days = _business_days_after(pd.to_datetime(last_true_date), end) if pd.notna(last_true_date) else np.nan
+    flatline = _flatline(monthly, flatline_months)
+    exclude_flag = bool((pd.notna(stale_days) and stale_days > allowed_lag_business_days) or flatline)
+    return {
+        "dashboard_series": dashboard_series,
+        "series_type": series_type,
+        "source_symbol": source_symbol,
+        "last_true_trade_date": last_true_date,
+        "last_resampled_date": last_resampled_date,
+        "stale_business_days": stale_days,
+        "allowed_lag_business_days": allowed_lag_business_days,
+        "flatline_6m": flatline,
+        "exclude_flag": exclude_flag,
+        "source_audit_status": "Exclude" if exclude_flag else "Pass",
+        "source_audit_basis": source_audit_basis,
+    }
+
+
 def build_source_audit(
     daily_levels: pd.DataFrame,
     monthly_levels: pd.DataFrame,
+    factor_levels: pd.DataFrame,
+    fred_raw: dict[str, pd.Series],
+    fred_monthly: dict[str, pd.Series],
     end: pd.Timestamp,
     dashboard_symbol_map: dict[str, str],
     flatline_months: int = 6,
@@ -161,27 +212,63 @@ def build_source_audit(
         monthly = monthly_levels[symbol].dropna()
         last_true_date = daily.index.max() if not daily.empty else pd.NaT
         last_resampled_date = monthly.index.max() if not monthly.empty else pd.NaT
-        stale_days = _business_days_after(pd.to_datetime(last_true_date), end) if pd.notna(last_true_date) else np.nan
-        if len(monthly) >= flatline_months:
-            recent = monthly.tail(flatline_months)
-            flatline = bool(recent.diff().abs().fillna(0.0).sum() == 0.0)
-        else:
-            flatline = False
         rows.append(
-            {
-                "dashboard_series": dashboard_symbol_map.get(symbol, symbol),
-                "source_symbol": symbol,
-                "last_true_trade_date": last_true_date,
-                "last_resampled_date": last_resampled_date,
-                "stale_business_days": stale_days,
-                "flatline_6m": flatline,
-                "exclude_flag": bool((pd.notna(stale_days) and stale_days > 10) or flatline),
-            }
+            _audit_row(
+                dashboard_series=dashboard_symbol_map.get(symbol, symbol),
+                source_symbol=symbol,
+                series_type="asset price / market proxy",
+                last_true_date=last_true_date,
+                last_resampled_date=last_resampled_date,
+                monthly=monthly,
+                end=end,
+                source_audit_basis="raw Yahoo daily close resampled to month-end",
+                allowed_lag_business_days=10,
+                flatline_months=flatline_months,
+            )
+        )
+
+    for factor, components in FACTOR_SOURCE_COMPONENTS.items():
+        if factor not in factor_levels:
+            continue
+        monthly_factor = factor_levels[factor].dropna()
+        if factor in FRED_SERIES:
+            source_id = FRED_SERIES[factor]
+            raw = fred_raw.get(factor, pd.Series(dtype=float)).dropna()
+            monthly_source = fred_monthly.get(factor, pd.Series(dtype=float)).dropna()
+            last_true_date = raw.index.max() if not raw.empty else pd.NaT
+            last_resampled_date = monthly_source.index.max() if not monthly_source.empty else pd.NaT
+            allowed_lag = 45 if factor == "liquidity" else 10
+            basis = "raw FRED observations resampled to month-end"
+        else:
+            component_dates = []
+            for component in components:
+                component_daily = daily_levels[component].dropna() if component in daily_levels else pd.Series(dtype=float)
+                if not component_daily.empty:
+                    component_dates.append(component_daily.index.max())
+            last_true_date = min(component_dates) if component_dates else pd.NaT
+            last_resampled_date = monthly_factor.index.max() if not monthly_factor.empty else pd.NaT
+            source_id = "/".join(components)
+            allowed_lag = 10
+            basis = "minimum raw Yahoo component date for derived factor"
+
+        rows.append(
+            _audit_row(
+                dashboard_series=factor,
+                source_symbol=source_id,
+                series_type="macro factor",
+                last_true_date=last_true_date,
+                last_resampled_date=last_resampled_date,
+                monthly=monthly_factor,
+                end=end,
+                source_audit_basis=basis,
+                allowed_lag_business_days=allowed_lag,
+                flatline_months=flatline_months,
+            )
         )
     return pd.DataFrame(rows)
 
 
-def download_fred_monthly(series_id: str, start: str, end: pd.Timestamp) -> pd.Series:
+def download_fred_series(series_id: str, start: str, end: pd.Timestamp) -> tuple[pd.Series, pd.Series]:
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
     raw = pd.read_csv(url)
     date_col = raw.columns[0]
@@ -190,7 +277,12 @@ def download_fred_monthly(series_id: str, start: str, end: pd.Timestamp) -> pd.S
     values = pd.to_numeric(raw[value_col].replace(".", np.nan), errors="coerce")
     series = pd.Series(values.to_numpy(), index=raw[date_col], name=series_id).sort_index()
     series = series.loc[series.index >= pd.Timestamp(start)]
-    return series.ffill().resample("ME").last().loc[:end]
+    monthly = series.ffill().resample("ME").last().loc[:end]
+    return series.loc[:end], monthly
+
+
+def download_fred_monthly(series_id: str, start: str, end: pd.Timestamp) -> pd.Series:
+    return download_fred_series(series_id, start=start, end=end)[1]
 
 
 def build_prices(universe: pd.DataFrame, yahoo_monthly: pd.DataFrame) -> pd.DataFrame:
@@ -237,10 +329,12 @@ def update_data(
     yahoo_daily = download_yahoo_daily(yahoo_symbols, start=start, end=end)
     yahoo_monthly = monthly_from_daily(yahoo_daily, end=end)
 
-    fred_monthly = {
-        name: download_fred_monthly(series_id, start=start, end=end)
-        for name, series_id in FRED_SERIES.items()
-    }
+    fred_raw: dict[str, pd.Series] = {}
+    fred_monthly: dict[str, pd.Series] = {}
+    for name, series_id in FRED_SERIES.items():
+        raw_series, monthly_series = download_fred_series(series_id, start=start, end=end)
+        fred_raw[name] = raw_series
+        fred_monthly[name] = monthly_series
 
     fresh_prices = build_prices(universe, yahoo_monthly)
     fresh_factors = build_factors(yahoo_monthly, fred_monthly)
@@ -254,7 +348,15 @@ def update_data(
     _write_csv(DATA / "prices.csv", prices)
     _write_csv(DATA / "factors.csv", factors)
     reverse_price_map = {PRICE_TICKER_MAP.get(ticker, ticker): ticker for ticker in universe["ticker"]}
-    source_audit = build_source_audit(yahoo_daily, yahoo_monthly, end=end, dashboard_symbol_map=reverse_price_map)
+    source_audit = build_source_audit(
+        yahoo_daily,
+        yahoo_monthly,
+        fresh_factors,
+        fred_raw,
+        fred_monthly,
+        end=end,
+        dashboard_symbol_map=reverse_price_map,
+    )
     source_audit.to_csv(SOURCE_AUDIT_FILE, index=False)
 
     payload = {

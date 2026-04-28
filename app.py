@@ -211,6 +211,9 @@ def load_source_audit() -> pd.DataFrame:
         audit = pd.read_csv(SOURCE_AUDIT_FILE, parse_dates=["last_true_trade_date", "last_resampled_date"])
     except (ValueError, FileNotFoundError):
         return pd.DataFrame()
+    required = {"dashboard_series", "last_true_trade_date", "last_resampled_date", "exclude_flag"}
+    if not required.issubset(audit.columns):
+        return pd.DataFrame()
     return audit
 
 
@@ -335,14 +338,22 @@ def stale_flatline_fallback(frame: pd.DataFrame, names: dict[str, str] | None = 
             continue
         recent = series.tail(6)
         stale_months = (frame.index.max().year - series.index.max().year) * 12 + (frame.index.max().month - series.index.max().month)
+        flatline = bool(len(recent) >= 6 and recent.diff().abs().fillna(0.0).sum() == 0.0)
+        exclude_flag = bool(stale_months > 0 or flatline)
         rows.append(
             {
-                "series": col,
+                "dashboard_series": col,
                 "name": names.get(col, col) if names else col,
-                "area": label,
+                "series_type": label,
+                "source_symbol": "stored monthly CSV",
+                "last_true_trade_date": pd.NaT,
                 "last_resampled_date": series.index.max(),
+                "stale_business_days": np.nan,
+                "allowed_lag_business_days": np.nan,
                 "stale_months": int(max(stale_months, 0)),
-                "flatline_6m": bool(len(recent) >= 6 and recent.diff().abs().fillna(0.0).sum() == 0.0),
+                "flatline_6m": flatline,
+                "exclude_flag": exclude_flag,
+                "source_audit_status": "Fallback exclude" if exclude_flag else "Fallback only",
                 "source_audit_basis": "monthly fallback; refresh data to populate last true trade dates",
             }
         )
@@ -1557,6 +1568,7 @@ with tab8:
     st.dataframe(provenance, width="stretch")
     st.markdown("**Stale and flatline source audit**")
     source_audit = load_source_audit()
+    using_source_audit_fallback = source_audit.empty
     if source_audit.empty:
         source_audit = pd.concat(
             [
@@ -1565,7 +1577,14 @@ with tab8:
             ],
             ignore_index=True,
         )
-    st.caption("Refresh data to populate exact last true trade dates from the raw daily Yahoo pull; the fallback uses stored monthly rows.")
+    if using_source_audit_fallback:
+        st.warning("Exact raw-source audit is not available in this app session; showing a conservative fallback from stored monthly rows.")
+    else:
+        excluded_count = int(pd.Series(source_audit.get("exclude_flag", False)).fillna(False).astype(bool).sum())
+        st.caption(
+            f"Exact raw-source audit loaded for {len(source_audit)} rows. "
+            f"Exclude flags: {excluded_count}. Yahoo daily sources use a 10-business-day lag rule; slower FRED liquidity data uses a wider documented lag rule."
+        )
     st.dataframe(source_audit, width="stretch")
     st.dataframe(freshness, width="stretch")
 
