@@ -38,6 +38,17 @@ SOURCE_AUDIT_SCHEMA_VERSION = 2
 BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v7_placebo"
 MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v2_score_rules"
 OPTIMIZER_VALIDATION_CACHE_VERSION = "optimizer_validation_v2_placebo"
+VIEW_NAMES = [
+    "Auto Regime",
+    "Investment Brief",
+    "Probability Rankings",
+    "Portfolio",
+    "Names",
+    "Factor Attribution",
+    "Scenario Playbook",
+    "Diagnostics",
+    "Data",
+]
 
 COLORS = {
     "positive": "#14b8a6",
@@ -883,6 +894,8 @@ with st.sidebar:
     backtest_cost_bps = st.slider("Backtest cost, bps", min_value=0, max_value=50, value=5, step=1)
     apply_investability_gate = st.checkbox("Apply investability gate", value=True)
     min_investability_score = st.slider("Minimum investability score", min_value=0, max_value=100, value=60, step=5)
+    st.header("View")
+    active_view = st.radio("Section", VIEW_NAMES, index=0, key="active_view")
 
 if not source_audit_is_current:
     st.stop()
@@ -901,60 +914,122 @@ if active_universe.empty:
     st.stop()
 
 result = build_model(prices, factors, active_universe, scenario, half_life=float(half_life))
-scenario_expected, scenario_conviction = build_scenario_matrices(prices, factors, active_universe, scenarios, half_life=float(half_life))
 auto_regime = estimate_scenario_probabilities(factors, scenarios)
-probability_rank = probability_weighted_asset_ranking(scenario_expected, auto_regime.probabilities, result.expected)
 overlay_breakdown = scenario_overlay_breakdown(auto_regime.probabilities, scenarios)
-calibration = build_calibration_report(factors, scenarios)
-market_regime_calibration = build_market_regime_calibration(
-    prices,
-    factors,
-    active_universe,
-    scenarios,
-    half_life=float(half_life),
-)
-market_outcome_validation = build_market_outcome_validation(
-    prices,
-    factors,
-    active_universe,
-    scenarios,
-    half_life=float(half_life),
-    cache_version=MARKET_VALIDATION_CACHE_VERSION,
-)
-optimized_portfolio = optimize_probability_weighted_portfolio(
-    scenario_expected,
-    auto_regime.probabilities,
-    result.expected,
-    result.rel_returns,
-    active_universe,
-    candidate_limit=28,
-)
-optimizer_validation_backtest = build_optimizer_validation(
-    prices,
-    factors,
-    active_universe,
-    scenarios,
-    half_life=float(half_life),
-    transaction_cost_bps=float(backtest_cost_bps),
-    cache_version=OPTIMIZER_VALIDATION_CACHE_VERSION,
-)
-predicted_portfolio_backtest = build_predicted_portfolio_backtest(
-    prices,
-    factors,
-    active_universe,
-    scenarios,
-    half_life=float(half_life),
-    n_each=basket_n,
-    transaction_cost_bps=float(backtest_cost_bps),
-    cache_version=BACKTEST_CACHE_VERSION,
-)
-point_in_time_audit = getattr(predicted_portfolio_backtest, "point_in_time_audit", pd.DataFrame()).copy()
 result.trade_basket = result.trade_basket.copy()
 if not result.trade_basket.empty:
     # Rebuild display basket from the full expected table if the user changes basket size.
     from model import build_trade_basket
 
     result.trade_basket = build_trade_basket(result.expected, n_each=basket_n, max_per_bucket=2)
+
+scenario_expected = pd.DataFrame()
+scenario_conviction = pd.DataFrame()
+probability_rank = pd.DataFrame()
+calibration = SimpleNamespace(summary=pd.DataFrame(), probability_buckets=pd.DataFrame(), recent_predictions=pd.DataFrame())
+market_regime_calibration = SimpleNamespace(summary=pd.DataFrame(), probability_buckets=pd.DataFrame(), recent_predictions=pd.DataFrame(), market_outcomes=pd.DataFrame())
+market_outcome_validation = pd.DataFrame()
+optimized_portfolio = SimpleNamespace(weights=pd.DataFrame(), stats=pd.DataFrame(), bucket_weights=pd.DataFrame(), constraint_audit=pd.DataFrame())
+optimizer_validation_backtest = SimpleNamespace(
+    returns=pd.DataFrame(),
+    summary=pd.DataFrame(),
+    equity=pd.DataFrame(),
+    drawdowns=pd.DataFrame(),
+    benchmark_tear_sheet=pd.DataFrame(),
+    placebo_distribution=pd.DataFrame(),
+    weights=pd.DataFrame(),
+    scenario_counts=pd.DataFrame(),
+    benchmark_diagnostics=pd.DataFrame(),
+    rolling_metrics=pd.DataFrame(),
+    stress_months=pd.DataFrame(),
+    cost_sensitivity=pd.DataFrame(),
+    point_in_time_audit=pd.DataFrame(),
+)
+predicted_portfolio_backtest = optimizer_validation_backtest
+point_in_time_audit = pd.DataFrame()
+market_validation_status = {
+    "label": "Open Diagnostics",
+    "severity": "warning",
+    "message": "Market validation is loaded only when the Diagnostics view is opened.",
+    "rank_ic_mean": np.nan,
+    "rank_ic_t": np.nan,
+    "spread_mean": np.nan,
+    "positive_spread_pct": np.nan,
+    "top_hit_pct": np.nan,
+}
+optimizer_validation_status = {
+    "label": "Open Portfolio",
+    "severity": "warning",
+    "message": "Optimizer validation is loaded only when the Portfolio view is opened.",
+}
+
+needs_scenario_matrix = active_view in {"Probability Rankings", "Portfolio", "Scenario Playbook"}
+if needs_scenario_matrix:
+    scenario_expected, scenario_conviction = build_scenario_matrices(prices, factors, active_universe, scenarios, half_life=float(half_life))
+
+if active_view == "Probability Rankings":
+    probability_rank = probability_weighted_asset_ranking(scenario_expected, auto_regime.probabilities, result.expected)
+
+if active_view == "Portfolio":
+    optimized_portfolio = optimize_probability_weighted_portfolio(
+        scenario_expected,
+        auto_regime.probabilities,
+        result.expected,
+        result.rel_returns,
+        active_universe,
+        candidate_limit=28,
+    )
+    optimizer_validation_backtest = build_optimizer_validation(
+        prices,
+        factors,
+        active_universe,
+        scenarios,
+        half_life=float(half_life),
+        transaction_cost_bps=float(backtest_cost_bps),
+        cache_version=OPTIMIZER_VALIDATION_CACHE_VERSION,
+    )
+    predicted_portfolio_backtest = build_predicted_portfolio_backtest(
+        prices,
+        factors,
+        active_universe,
+        scenarios,
+        half_life=float(half_life),
+        n_each=basket_n,
+        transaction_cost_bps=float(backtest_cost_bps),
+        cache_version=BACKTEST_CACHE_VERSION,
+    )
+    point_in_time_audit = getattr(predicted_portfolio_backtest, "point_in_time_audit", pd.DataFrame()).copy()
+    optimizer_validation_status = optimizer_validation_summary(optimizer_validation_backtest)
+
+if active_view == "Diagnostics":
+    market_outcome_validation = build_market_outcome_validation(
+        prices,
+        factors,
+        active_universe,
+        scenarios,
+        half_life=float(half_life),
+        cache_version=MARKET_VALIDATION_CACHE_VERSION,
+    )
+    market_regime_calibration = build_market_regime_calibration(
+        prices,
+        factors,
+        active_universe,
+        scenarios,
+        half_life=float(half_life),
+    )
+    calibration = build_calibration_report(factors, scenarios)
+    predicted_portfolio_backtest = build_predicted_portfolio_backtest(
+        prices,
+        factors,
+        active_universe,
+        scenarios,
+        half_life=float(half_life),
+        n_each=basket_n,
+        transaction_cost_bps=float(backtest_cost_bps),
+        cache_version=BACKTEST_CACHE_VERSION,
+    )
+    point_in_time_audit = getattr(predicted_portfolio_backtest, "point_in_time_audit", pd.DataFrame()).copy()
+    market_validation_status = market_validation_summary(market_outcome_validation)
 
 best_bucket, worst_bucket = best_worst_bucket(result.bucket_summary)
 basket_edge = result.trade_basket["expected_contribution_pct"].sum() if not result.trade_basket.empty else 0.0
@@ -966,7 +1041,7 @@ pit_flags = (
     if not point_in_time_audit.empty and "lookahead_flag" in point_in_time_audit
     else np.nan
 )
-date_boundary_status = "Unavailable" if not np.isfinite(pit_flags) else ("Pass" if pit_flags == 0 else "Fail")
+date_boundary_status = "Open Diagnostics" if active_view != "Diagnostics" else ("Unavailable" if not np.isfinite(pit_flags) else ("Pass" if pit_flags == 0 else "Fail"))
 refresh_date = pd.to_datetime(state.get("updated_at_utc", refresh_info.get("updated_at_utc")), errors="coerce")
 cache_age_hours = (
     (pd.Timestamp.now(tz="UTC").tz_localize(None) - refresh_date.tz_localize(None)).total_seconds() / 3600.0
@@ -979,8 +1054,6 @@ data_status = status_label(
     amber_reason=True,
 )
 data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
-market_validation_status = market_validation_summary(market_outcome_validation)
-optimizer_validation_status = optimizer_validation_summary(optimizer_validation_backtest)
 rank_ic_t_display = (
     f"{market_validation_status['rank_ic_t']:.2f}"
     if np.isfinite(market_validation_status["rank_ic_t"])
@@ -1024,21 +1097,7 @@ st.caption(
     "and do not use the manual sidebar preset."
 )
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
-    [
-        "Auto Regime",
-        "Investment Brief",
-        "Probability Rankings",
-        "Portfolio",
-        "Names",
-        "Factor Attribution",
-        "Scenario Playbook",
-        "Diagnostics",
-        "Data",
-    ]
-)
-
-with tab0:
+if active_view == "Auto Regime":
     st.subheader("Automatic model-implied scenario weights")
     st.caption(
         "Computed from the latest macro state only, then transition-smoothed. These weights are normalized model scores, "
@@ -1121,7 +1180,7 @@ with tab0:
     feature_view = feature_view.sort_values("abs_value", ascending=False).head(12).drop(columns=["abs_value"])
     st.dataframe(format_pct_columns(feature_view, ["value"]), width="stretch")
 
-with tab1:
+if active_view == "Investment Brief":
     st.subheader("Scenario allocation view")
     st.caption(f"Manual playbook for the selected sidebar scenario: {preset}.")
     gate_message = (
@@ -1199,7 +1258,7 @@ with tab1:
             width="stretch",
         )
 
-with tab2:
+if active_view == "Probability Rankings":
     st.subheader("Probability-weighted robust ranking")
     st.caption(
         "Uses the automated model-implied scenario weights above, not the manual sidebar scenario. Treat rankings as research-only unless the validation gates pass."
@@ -1302,7 +1361,7 @@ with tab2:
         width="stretch",
     )
 
-with tab3:
+if active_view == "Portfolio":
     st.subheader("Probability-weighted optimized portfolio")
     st.caption(
         "Uses model-implied scenario weights, return dispersion, and the recent covariance matrix. This is a research tilt optimizer, not an execution order."
@@ -1917,7 +1976,7 @@ with tab3:
             width="stretch",
         )
 
-with tab4:
+if active_view == "Names":
     st.subheader("Universe quality and investability gate")
     st.caption("Scores are operational guardrails for dashboard use. They combine data freshness, proxy coverage, liquidity, and implementation-cost heuristics.")
     uq = universe_quality.copy()
@@ -2003,7 +2062,7 @@ with tab4:
         width="stretch",
     )
 
-with tab5:
+if active_view == "Factor Attribution":
     st.subheader("Factor attribution")
     labels = result.expected.sort_values("abs_conviction_score", ascending=False).copy()
     fallback_names = pd.Series(labels.index, index=labels.index)
@@ -2042,7 +2101,7 @@ with tab5:
     st.plotly_chart(fig, width="stretch")
     st.dataframe(format_pct_columns(attribution, ["scenario_shock_z", "beta", "contribution_pct", "t_stat"]), width="stretch")
 
-with tab6:
+if active_view == "Scenario Playbook":
     st.subheader("Scenario comparison")
     st.caption("Compares the selected manual sidebar scenario against another preset.")
     other = st.selectbox("Compare against", scenario_names, index=scenario_names.index("Custom") if "Custom" in scenario_names else 0)
@@ -2090,7 +2149,7 @@ with tab6:
     polish_figure(fig, height=520)
     st.plotly_chart(fig, width="stretch")
 
-with tab7:
+if active_view == "Diagnostics":
     st.subheader("Model diagnostics")
     diag_cols = [
         "name",
@@ -2410,7 +2469,7 @@ with tab7:
     polish_figure(fig, height=540)
     st.plotly_chart(fig, width="stretch")
 
-with tab8:
+if active_view == "Data":
     st.subheader("Inputs")
     st.markdown("**Data freshness and source status**")
     st.caption("This dashboard uses completed monthly public market and macro proxy data. It is not an intraday live-data terminal.")
