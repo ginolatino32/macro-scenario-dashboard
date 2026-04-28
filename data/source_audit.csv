@@ -1,0 +1,58 @@
+dashboard_series,series_type,source_symbol,last_true_trade_date,last_resampled_date,stale_business_days,allowed_lag_business_days,flatline_6m,exclude_flag,source_audit_status,source_audit_basis
+ACWI,asset price / market proxy,ACWI,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+AGG,asset price / market proxy,AGG,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+DBC,asset price / market proxy,DBC,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+HYG,asset price / market proxy,HYG,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+BIL,asset price / market proxy,BIL,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+BTC,asset price / market proxy,BTC,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+ETH,asset price / market proxy,ETH,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+SPY,asset price / market proxy,SPY,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EEM,asset price / market proxy,EEM,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EFA,asset price / market proxy,EFA,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EWJ,asset price / market proxy,EWJ,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EWU,asset price / market proxy,EWU,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EWL,asset price / market proxy,EWL,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EPP,asset price / market proxy,EPP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLK,asset price / market proxy,XLK,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+SOXX,asset price / market proxy,SOXX,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLE,asset price / market proxy,XLE,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLB,asset price / market proxy,XLB,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLI,asset price / market proxy,XLI,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLY,asset price / market proxy,XLY,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLP,asset price / market proxy,XLP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLV,asset price / market proxy,XLV,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XLU,asset price / market proxy,XLU,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+VNQ,asset price / market proxy,VNQ,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+XHB,asset price / market proxy,XHB,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+SHY,asset price / market proxy,SHY,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+IEF,asset price / market proxy,IEF,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+TLT,asset price / market proxy,TLT,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+TIP,asset price / market proxy,TIP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+LQD,asset price / market proxy,LQD,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+EMB,asset price / market proxy,EMB,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+UUP,asset price / market proxy,UUP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+FXA,asset price / market proxy,FXA,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+FXC,asset price / market proxy,FXC,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+FXF,asset price / market proxy,FXF,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+FXY,asset price / market proxy,FXY,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+FXE,asset price / market proxy,FXE,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+GLD,asset price / market proxy,GLD,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+USO,asset price / market proxy,USO,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+CPER,asset price / market proxy,CPER,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+CORN,asset price / market proxy,CORN,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+WEAT,asset price / market proxy,WEAT,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+BAL,asset price / market proxy,BAL,2026-03-31,2026-03-31,0,10,True,True,Exclude,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+JO,asset price / market proxy,JO,2026-03-31,2026-03-31,0,10,True,True,Exclude,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+IWM,asset price / market proxy,IWM,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+MTUM,asset price / market proxy,MTUM,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+QUAL,asset price / market proxy,QUAL,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+VLUE,asset price / market proxy,VLUE,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+USMV,asset price / market proxy,USMV,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+SPHB,asset price / market proxy,SPHB,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+risk,macro factor,ACWI/IEF,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+growth,macro factor,XLI/XLP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+inflation,macro factor,TIP/IEF,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+rates,macro factor,DGS2,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+liquidity,macro factor,M2SL,2026-03-31,2026-03-31,0,45,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+dollar,macro factor,UUP,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available
+oil,macro factor,USO,2026-03-31,2026-03-31,0,10,False,False,Pass,committed monthly snapshot audit; raw source-date audit is produced by update_data.py when Yahoo/FRED access is available

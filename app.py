@@ -31,7 +31,7 @@ CONFIG = ROOT / "config"
 STATE_FILE = DATA / "update_state.json"
 SOURCE_AUDIT_FILE = DATA / "source_audit.csv"
 SOURCE_AUDIT_SCHEMA_VERSION = 2
-BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v5"
+BACKTEST_CACHE_VERSION = "predicted_scenario_backtest_equity_v6"
 
 COLORS = {
     "positive": "#14b8a6",
@@ -106,34 +106,27 @@ def source_audit_file_is_current(state: dict) -> bool:
 
 @st.cache_data(ttl=6 * 60 * 60, show_spinner=False)
 def refresh_data_on_startup() -> dict:
-    if os.getenv("MACRO_DASHBOARD_AUTO_UPDATE", "1") == "0":
-        return {"ok": True, "skipped": True, "skip_reason": "disabled", "updated_at_utc": "auto-update-disabled"}
-
     state = read_update_state_file()
     expected_month = last_completed_month_end().strftime("%Y-%m-%d")
-    if (
+    source_audit_current = source_audit_file_is_current(state)
+    snapshot_current = (
         state.get("last_complete_month") == expected_month
         and state.get("prices_last_date") == expected_month
-        and source_audit_file_is_current(state)
-    ):
-        payload = dict(state)
-        payload.update({"ok": True, "skipped": True, "skip_reason": "already-current"})
-        return payload
-
-    try:
-        from update_data import update_data
-
-        payload = update_data()
-        payload["ok"] = True
-        payload["skipped"] = False
-        return payload
-    except Exception as exc:
-        return {
-            "ok": False,
-            "skipped": False,
-            "updated_at_utc": "refresh-failed",
-            "error": f"{type(exc).__name__}: {exc}",
+        and source_audit_current
+    )
+    payload = dict(state)
+    payload.update(
+        {
+            "ok": snapshot_current,
+            "skipped": True,
+            "skip_reason": "read-only-snapshot-current" if snapshot_current else "read-only-snapshot-stale",
+            "expected_month": expected_month,
+            "read_only_runtime": True,
+            "source_audit_current": source_audit_current,
+            "updated_at_utc": state.get("updated_at_utc", "snapshot-not-available"),
         }
+    )
+    return payload
 
 
 @st.cache_data
@@ -376,7 +369,7 @@ def stale_flatline_fallback(frame: pd.DataFrame, names: dict[str, str] | None = 
                 "flatline_6m": flatline,
                 "exclude_flag": exclude_flag,
                 "source_audit_status": "Fallback exclude" if exclude_flag else "Fallback only",
-                "source_audit_basis": "monthly fallback; refresh data to populate last true trade dates",
+                "source_audit_basis": "monthly fallback; run data workflow to populate last true trade dates",
             }
         )
     return pd.DataFrame(rows)
@@ -517,20 +510,15 @@ except FileNotFoundError:
     st.error("Missing data files. Run `python sample_data.py` first, then restart the app.")
     st.stop()
 
-if not refresh_info["ok"]:
-    st.warning(f"Data refresh failed; using existing CSVs. {refresh_info['error']}")
-elif refresh_info.get("skipped"):
-    if refresh_info.get("skip_reason") == "already-current":
-        st.caption(
-            f"Data already current through {refresh_info.get('prices_last_date') or refresh_info.get('last_complete_month')} "
-            f"from {refresh_info.get('source')}."
-        )
-    else:
-        st.caption("Data auto-refresh disabled by MACRO_DASHBOARD_AUTO_UPDATE=0.")
-else:
+if refresh_info["ok"]:
     st.caption(
-        f"Data refreshed through {refresh_info.get('prices_last_date')} "
+        f"Read-only data snapshot current through {refresh_info.get('prices_last_date') or refresh_info.get('last_complete_month')} "
         f"from {refresh_info.get('source')}."
+    )
+else:
+    st.error(
+        "Read-only data snapshot is stale or missing its source audit. "
+        "Run the scheduled/manual GitHub data workflow before using model output."
     )
 
 scenario_names = list(scenarios["scenario"])
@@ -540,24 +528,27 @@ asset_names = universe.set_index("ticker")["name"].to_dict()
 price_quality = data_quality_table(prices, expected_month, asset_names)
 factor_quality = data_quality_table(factors, expected_month)
 source_audit_exact = load_source_audit()
+source_audit_is_current = source_audit_file_is_current(state)
 universe_quality = universe_quality_table(universe, prices, price_quality, source_audit_exact)
 
 with st.sidebar:
     st.header("Data")
-    if st.button("Refresh data now", use_container_width=True):
-        try:
-            from update_data import update_data
+    st.caption("Streamlit runtime is read-only. Refresh data with the GitHub Action or run update_data.py before deployment.")
+    if os.getenv("MACRO_DASHBOARD_ALLOW_RUNTIME_REFRESH", "0") == "1":
+        if st.button("Local research refresh", use_container_width=True):
+            try:
+                from update_data import update_data
 
-            payload = update_data()
-            st.session_state["manual_refresh_status"] = (
-                f"Refresh complete through {payload.get('prices_last_date') or payload.get('factors_last_date')}."
-            )
-            st.cache_data.clear()
-            st.rerun()
-        except Exception as exc:
-            st.session_state["manual_refresh_status"] = f"Refresh failed: {type(exc).__name__}: {exc}"
-    if st.session_state.get("manual_refresh_status"):
-        st.caption(st.session_state["manual_refresh_status"])
+                payload = update_data(force_full_refresh=False)
+                st.session_state["manual_refresh_status"] = (
+                    f"Local refresh complete through {payload.get('prices_last_date') or payload.get('factors_last_date')}."
+                )
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as exc:
+                st.session_state["manual_refresh_status"] = f"Local refresh failed: {type(exc).__name__}: {exc}"
+        if st.session_state.get("manual_refresh_status"):
+            st.caption(st.session_state["manual_refresh_status"])
 
     st.header("Scenario")
     preset = st.selectbox("Preset", scenario_names, index=scenario_names.index("Summer") if "Summer" in scenario_names else 0)
@@ -573,9 +564,15 @@ with st.sidebar:
     half_life = st.slider("Recency half-life, months", min_value=6, max_value=120, value=36, step=6)
     top_n = st.slider("Top/bottom names", min_value=1, max_value=10, value=3, step=1)
     basket_n = st.slider("Basket names per side", min_value=3, max_value=10, value=6, step=1)
-    backtest_cost_bps = st.slider("Backtest cost, bps", min_value=0, max_value=50, value=0, step=1)
+    backtest_cost_bps = st.slider("Backtest cost, bps", min_value=0, max_value=50, value=5, step=1)
     apply_investability_gate = st.checkbox("Apply investability gate", value=True)
     min_investability_score = st.slider("Minimum investability score", min_value=0, max_value=100, value=60, step=5)
+
+if not source_audit_is_current:
+    st.stop()
+
+if not apply_investability_gate:
+    st.warning("Research override active: the investability gate is disabled. Do not treat rankings or portfolio output as investable.")
 
 eligible_tickers = universe_quality[
     (universe_quality["status"] == "Current")
@@ -584,8 +581,8 @@ eligible_tickers = universe_quality[
 ]["ticker"].tolist()
 active_universe = universe[universe["ticker"].isin(eligible_tickers)].copy() if apply_investability_gate else universe.copy()
 if active_universe.empty:
-    st.warning("Investability gate excluded the full universe. Falling back to all assets for this run.")
-    active_universe = universe.copy()
+    st.error("Investability gate excluded the full universe. Model output is stopped instead of falling back to unapproved assets.")
+    st.stop()
 
 result = build_model(prices, factors, active_universe, scenario, half_life=float(half_life))
 scenario_expected, scenario_conviction = build_scenario_matrices(prices, factors, active_universe, scenarios, half_life=float(half_life))
@@ -1002,17 +999,25 @@ with tab3:
                     [
                         {"constraint": "Max asset weight", "value": "12%"},
                         {"constraint": "Max bucket gross", "value": "35%"},
+                        {"constraint": "Max net exposure", "value": "25%"},
                         {"constraint": "Gross target", "value": "100%"},
                         {"constraint": "Covariance lookback", "value": "60 months"},
+                        {"constraint": "Optimizer", "value": str(opt_stats.get("optimizer_status", "constrained SLSQP"))},
                     ]
                 ),
                 width="stretch",
             )
+            if not optimized_portfolio.constraint_audit.empty:
+                st.markdown("**Constraint audit**")
+                st.dataframe(
+                    format_pct_columns(optimized_portfolio.constraint_audit, ["actual_pct", "limit_pct"]),
+                    width="stretch",
+                )
 
     st.subheader("Walk-forward predicted-scenario portfolio vs SPY")
     st.caption(
         "Each month uses data available at that month-end, selects the modal non-unknown scenario, builds the diversified long/short scenario basket, "
-        "then applies it to the following month. Performance uses actual asset returns and is compared with SPY."
+        "then applies it to the following month. Performance uses actual asset returns, with SPY shown on the chart and a broader benchmark tear sheet below."
     )
     bt = predicted_portfolio_backtest
     if bt.returns.empty:
@@ -1051,7 +1056,8 @@ with tab3:
                     hovertemplate="%{x|%Y-%m-%d}<br>%{y:.2f}x<extra>" + series + "</extra>",
                 )
             )
-        max_equity = float(equity.max(numeric_only=True).max())
+        plotted_equity = equity[[series for series in line_styles if series in equity]]
+        max_equity = float(plotted_equity.max(numeric_only=True).max())
         fig.update_layout(xaxis_title="", yaxis_title="Growth of $1")
         fig.update_yaxes(range=[0, max(1.1, max_equity * 1.08)])
         polish_figure(fig, height=460)
@@ -1111,6 +1117,29 @@ with tab3:
                         "avg_strategy_return_pct",
                         "avg_spy_return_pct",
                         "hit_rate_pct",
+                    ],
+                ),
+                width="stretch",
+            )
+
+        if not bt.benchmark_tear_sheet.empty:
+            st.markdown("**Benchmark tear sheet**")
+            st.dataframe(
+                format_pct_columns(
+                    bt.benchmark_tear_sheet,
+                    [
+                        "strategy_cagr_pct",
+                        "benchmark_cagr_pct",
+                        "active_cagr_spread_pct",
+                        "strategy_sharpe",
+                        "benchmark_sharpe",
+                        "sharpe_spread",
+                        "tracking_error_pct",
+                        "information_ratio",
+                        "beta",
+                        "correlation",
+                        "strategy_max_dd_pct",
+                        "benchmark_max_dd_pct",
                     ],
                 ),
                 width="stretch",
@@ -1529,7 +1558,7 @@ with tab7:
         a1, a2, a3, a4, a5 = st.columns(5)
         a1.metric("Audit rows", f"{len(audit):,}")
         a2.metric("Lookahead flags", f"{lookahead_count}")
-        a3.metric("Acceptance", "Pass" if lookahead_count == 0 else "Fail")
+        a3.metric("Date-boundary", "Pass" if lookahead_count == 0 else "Fail")
         a4.metric("Run ID", dashboard_run_id())
         a5.metric("Cache age", f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a")
         st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0`; vintage-data limitations remain separate and disclosed.")
@@ -1579,7 +1608,7 @@ with tab8:
                 "area": "Asset universe",
                 "source": "Yahoo Finance via yfinance",
                 "frequency": "Completed month-end closes",
-                "live_status": "Public market data, refreshed/rewritten on the latest tail months",
+                "live_status": "Public market data, refreshed by scheduled/manual GitHub workflow",
                 "limitation": "ETF/proxy universe, not full security master or execution venue feed",
             },
             {

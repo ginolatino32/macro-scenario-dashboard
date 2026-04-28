@@ -11,8 +11,8 @@ This dashboard provides a macro scenario analysis workflow with:
 - investor-facing bucket tilts, long/short playbook, factor attribution, scenario stress map, and model diagnostics
 - automatic scenario probabilities, unknown/mixed regime detection, probability-weighted asset rankings, robustness, downside, regret, and fragility diagnostics
 
-It will not reproduce the exact proprietary GMI/MIT output unless you have the same historical data, factor definitions, scenario presets, and weighting rules.
-The dashboard now refreshes public monthly Yahoo/FRED data by default. Treat the macro factors as transparent proxies and validate the proxy choices before using the outputs for capital allocation.
+It will not reproduce any proprietary institutional output unless you have the same historical data, factor definitions, scenario presets, and weighting rules.
+The dashboard uses public monthly Yahoo/FRED proxy data. Treat the macro factors as transparent proxies and validate the proxy choices before using the outputs for capital allocation.
 
 ## Files
 
@@ -25,6 +25,7 @@ config/universe.csv    Asset universe, bucket, benchmark mapping
 config/scenarios.csv   Editable scenario presets
 data/prices.csv        Public monthly market/ETF/crypto price history after refresh
 data/factors.csv       Public monthly macro proxy history after refresh
+data/source_audit.csv  Source freshness and stale/flatline exclusion audit
 data/update_state.json Public-data updater metadata
 ```
 
@@ -32,10 +33,11 @@ data/update_state.json Public-data updater metadata
 
 ```bash
 pip install -r requirements.txt
+python update_data.py --append-only
 streamlit run app.py
 ```
 
-On startup the app runs `update_data.py`, downloads public monthly Yahoo/FRED proxy data, and appends or refreshes `data/prices.csv` and `data/factors.csv`. The first updater run replaces the synthetic starter CSVs with a full public-history refresh; later runs keep existing history and rewrite only the recent overlapping months plus new completed months.
+The Streamlit app is read-only by default. It does not mutate production data on page load. Run the updater before launching locally, or use the GitHub Action in `.github/workflows/update-data.yml` to refresh the committed data snapshot for Streamlit Community Cloud.
 
 Manual update commands:
 
@@ -45,18 +47,19 @@ python update_data.py --force-full-refresh
 python update_data.py --append-only
 ```
 
-Disable startup refresh when needed:
+Runtime refresh is disabled unless you explicitly enable local research mode:
 
 ```bash
-MACRO_DASHBOARD_AUTO_UPDATE=0 streamlit run app.py
+MACRO_DASHBOARD_ALLOW_RUNTIME_REFRESH=1 streamlit run app.py
 ```
 
 ## Deploy on Streamlit Community Cloud
 
 1. Push this folder to a GitHub repository.
-2. In Streamlit Community Cloud, choose that repository and set the main file path to `app.py`.
-3. Keep `requirements.txt`, `config/`, and `data/` in the repository. The app can refresh public Yahoo/FRED proxy data on startup, but the committed CSVs make the first load deterministic.
-4. Do not add private data, API keys, broker credentials, or paid data exports to this repository. If a future version needs secrets, put them in Streamlit secrets, not in the files.
+2. Run the `Update dashboard data` GitHub Action once so `data/source_audit.csv`, `data/prices.csv`, `data/factors.csv`, and `data/update_state.json` are committed together.
+3. In Streamlit Community Cloud, choose that repository and set the main file path to `app.py`.
+4. Keep `requirements.txt`, `config/`, and `data/` in the repository. The app reads the committed snapshot only; scheduled GitHub Actions refresh the data.
+5. Do not add private data, API keys, broker credentials, or paid data exports to this repository. If a future version needs secrets, put them in Streamlit secrets, not in the files.
 
 ## Bring-your-own data format
 
@@ -153,7 +156,7 @@ The dashboard also reports:
 
 ## Implemented improvement layers
 
-1. Data freshness and source transparency: add a visible per-source update table, expose the latest completed data month, and add a manual refresh control for the dashboard.
+1. Data freshness and source transparency: keep the visible per-source update table, expose the latest completed data month, and refresh committed snapshots through the scheduled/manual GitHub Action.
 2. Probability calibration: walk-forward test the scenario probabilities, tune temperature, and report Brier/log score plus calibration by probability bucket.
 3. Scenario structure: split the flat preset list into core growth/inflation regimes plus policy/liquidity and stress overlays.
 4. Transition smoothing: add monthly transition priors so the automatic regime probabilities do not flip too aggressively on one noisy macro print.

@@ -143,8 +143,31 @@ def download_yahoo_daily(symbols: list[str], start: str, end: pd.Timestamp) -> p
     return levels.sort_index()
 
 
-def monthly_from_daily(levels: pd.DataFrame, end: pd.Timestamp) -> pd.DataFrame:
-    monthly = levels.sort_index().ffill().resample("ME").last().loc[:end]
+def _month_end_last_true_observation(series: pd.Series, month_ends: pd.DatetimeIndex, max_age_days: int) -> pd.Series:
+    clean = series.dropna().sort_index()
+    out = pd.Series(np.nan, index=month_ends, dtype=float)
+    if clean.empty:
+        return out
+
+    for month_end in month_ends:
+        valid = clean.loc[clean.index <= month_end]
+        if valid.empty:
+            continue
+        last_date = valid.index[-1]
+        if (month_end - last_date).days <= max_age_days:
+            out.loc[month_end] = float(valid.iloc[-1])
+    return out
+
+
+def monthly_from_daily(levels: pd.DataFrame, end: pd.Timestamp, max_age_days: int = 7) -> pd.DataFrame:
+    levels = levels.sort_index()
+    if levels.empty:
+        return levels
+    start_month = levels.index.min().to_period("M").to_timestamp("M")
+    month_ends = pd.date_range(start_month, end, freq="ME")
+    monthly = pd.DataFrame(index=month_ends)
+    for column in levels.columns:
+        monthly[column] = _month_end_last_true_observation(levels[column], month_ends, max_age_days=max_age_days)
     return monthly.dropna(how="all")
 
 
@@ -269,6 +292,17 @@ def build_source_audit(
     return pd.DataFrame(rows)
 
 
+def monthly_from_observations(series: pd.Series, end: pd.Timestamp, max_age_days: int) -> pd.Series:
+    clean = series.dropna().sort_index()
+    if clean.empty:
+        return pd.Series(dtype=float, name=series.name)
+    start_month = clean.index.min().to_period("M").to_timestamp("M")
+    month_ends = pd.date_range(start_month, end, freq="ME")
+    monthly = _month_end_last_true_observation(clean, month_ends, max_age_days=max_age_days)
+    monthly.name = series.name
+    return monthly.dropna()
+
+
 def download_fred_series(series_id: str, start: str, end: pd.Timestamp) -> tuple[pd.Series, pd.Series]:
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
     raw = pd.read_csv(url)
@@ -278,7 +312,8 @@ def download_fred_series(series_id: str, start: str, end: pd.Timestamp) -> tuple
     values = pd.to_numeric(raw[value_col].replace(".", np.nan), errors="coerce")
     series = pd.Series(values.to_numpy(), index=raw[date_col], name=series_id).sort_index()
     series = series.loc[series.index >= pd.Timestamp(start)]
-    monthly = series.ffill().resample("ME").last().loc[:end]
+    max_age_days = 45 if series_id == "M2SL" else 10
+    monthly = monthly_from_observations(series.loc[:end], end=end, max_age_days=max_age_days)
     return series.loc[:end], monthly
 
 
@@ -306,8 +341,8 @@ def build_factors(yahoo_monthly: pd.DataFrame, fred_monthly: dict[str, pd.Series
     factors["risk"] = 100.0 * yahoo_monthly["ACWI"] / yahoo_monthly["IEF"]
     factors["growth"] = 100.0 * yahoo_monthly["XLI"] / yahoo_monthly["XLP"]
     factors["inflation"] = 100.0 * yahoo_monthly["TIP"] / yahoo_monthly["IEF"]
-    factors["rates"] = fred_monthly["rates"].reindex(idx).ffill()
-    factors["liquidity"] = fred_monthly["liquidity"].reindex(idx).ffill()
+    factors["rates"] = fred_monthly["rates"].reindex(idx)
+    factors["liquidity"] = fred_monthly["liquidity"].reindex(idx)
     factors["dollar"] = yahoo_monthly["UUP"]
     factors["oil"] = yahoo_monthly["USO"]
     return factors[FACTOR_COLUMNS].dropna(how="all")

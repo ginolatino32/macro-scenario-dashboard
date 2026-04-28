@@ -63,6 +63,9 @@
   "prices_rows": 219,
   "rewrite_tail_months": 2,
   "source": "yfinance_fred_public_macro_proxies_v1",
+  "source_audit_kind": "committed_monthly_snapshot_fallback",
+  "source_audit_rows": 57,
+  "source_audit_schema_version": 2,
   "start": "2008-01-01",
   "updated_at_utc": "2026-04-28T16:08:30+00:00"
 }
