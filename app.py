@@ -556,6 +556,7 @@ data_status = status_label(
     len(price_quality) + len(factor_quality),
     amber_reason=True,
 )
+data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
 st.warning(
     "Mode: Research only | "
     f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
@@ -564,7 +565,7 @@ st.warning(
     f"Vintage status: latest-revised proxies, not ALFRED vintages | "
     f"Transaction costs: {backtest_cost_bps} bps | "
     f"Cache age: {cache_age_hours:.1f}h | "
-    f"Data status: {data_status} | "
+    f"Data status: {data_status_display} | "
     f"Model confidence: {confidence_label(auto_regime.confidence)}"
 )
 c1, c2, c3, c4, c5 = st.columns(5)
@@ -1482,6 +1483,44 @@ with tab8:
     q3.metric("Stale assets", f"{int((price_quality['status'] == 'Stale').sum())}")
     q4.metric("Current factors", f"{int((factor_quality['status'] == 'Current').sum())}/{len(factor_quality)}")
     q5.metric("Refreshed", refresh_date.strftime("%b %d") if pd.notna(refresh_date) else "n/a")
+    st.markdown("**Data provenance**")
+    source_name = state.get("source", refresh_info.get("source", "unknown"))
+    yahoo_count = len(state.get("price_symbols", refresh_info.get("price_symbols", [])) or [])
+    fred_series = state.get("fred_series", refresh_info.get("fred_series", {})) or {}
+    provenance = pd.DataFrame(
+        [
+            {
+                "area": "Asset universe",
+                "source": "Yahoo Finance via yfinance",
+                "frequency": "Completed month-end closes",
+                "live_status": "Public market data, refreshed/rewritten on the latest tail months",
+                "limitation": "ETF/proxy universe, not full security master or execution venue feed",
+            },
+            {
+                "area": "Macro factors",
+                "source": f"{source_name}; Yahoo factor proxies plus FRED {', '.join(fred_series.values()) if fred_series else 'series'}",
+                "frequency": "Monthly proxy levels",
+                "live_status": "Latest-revised public data",
+                "limitation": "Not ALFRED point-in-time vintages; revisions are disclosed in diagnostics",
+            },
+            {
+                "area": "Scenario definitions",
+                "source": "Local config/scenarios.csv",
+                "frequency": "Static until edited",
+                "live_status": "Model inputs, not downloaded observations",
+                "limitation": "Hand-defined macro states require validation and calibration",
+            },
+            {
+                "area": "Backtest decisions",
+                "source": "Walk-forward model using rows dated on or before rebalance month-end",
+                "frequency": "Monthly",
+                "live_status": "Point-in-time row boundary audited",
+                "limitation": "Still uses latest-revised macro proxies and simplified transaction costs",
+            },
+        ]
+    )
+    st.caption(f"Tracked Yahoo/FRED symbols: {yahoo_count}. Amber status means the latest rows are present, but proxy and vintage limitations remain.")
+    st.dataframe(provenance, width="stretch")
     st.dataframe(freshness, width="stretch")
 
     st.markdown("**Asset price quality**")
