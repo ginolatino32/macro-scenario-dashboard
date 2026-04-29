@@ -88,7 +88,7 @@ st.markdown(
         color: var(--text);
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    .block-container {max-width: 1180px; padding: 1.35rem 1.15rem 3rem;}
+    .block-container {max-width: 1220px; padding: 0.8rem 1.15rem 2.6rem;}
     section[data-testid="stSidebar"] {
         background: #151412;
         border-right: 1px solid var(--line);
@@ -107,43 +107,43 @@ st.markdown(
         font-size: 0.84rem;
     }
     h1, h2, h3, h4, h5, h6 {letter-spacing: 0; color: var(--text);}
-    h1 {font-size: clamp(2.0rem, 5vw, 3.0rem); line-height: 1.04; margin-bottom: 0.45rem;}
-    h2 {font-size: 1.35rem; margin-top: 1.8rem;}
-    h3 {font-size: 1.05rem; margin-top: 1.35rem;}
+    h1 {font-size: clamp(1.65rem, 3.4vw, 2.2rem); line-height: 1.04; margin-bottom: 0.28rem;}
+    h2 {font-size: 1.25rem; margin-top: 1.55rem;}
+    h3 {font-size: 1.0rem; margin-top: 1.15rem;}
     p {color: var(--muted); line-height: 1.55;}
     .dashboard-header {
         border-bottom: 1px solid var(--line);
-        padding: 0.4rem 0 1.0rem;
-        margin-bottom: 1rem;
+        padding: 0.2rem 0 0.7rem;
+        margin-bottom: 0.7rem;
     }
     .eyebrow {
         display: inline-flex;
         align-items: center;
         color: var(--amber);
-        font-size: 0.72rem;
+        font-size: 0.66rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.42rem;
     }
     .dashboard-subtitle {
         max-width: 760px;
         color: var(--muted);
-        font-size: 0.98rem;
-        margin: 0.1rem 0 0.85rem;
+        font-size: 0.9rem;
+        margin: 0.05rem 0 0.52rem;
     }
     .dashboard-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.55rem;
+        gap: 0.5rem;
         color: var(--muted-2);
-        font-size: 0.78rem;
+        font-size: 0.72rem;
     }
     .regime-summary {
         display: grid;
         grid-template-columns: minmax(210px, 1.45fr) repeat(3, minmax(104px, 0.65fr));
-        gap: 0.65rem;
-        margin: 0.9rem 0 0.8rem;
+        gap: 0.58rem;
+        margin: 0.62rem 0 0.58rem;
         align-items: stretch;
     }
     .regime-primary,
@@ -154,59 +154,59 @@ st.markdown(
         border-radius: 8px;
     }
     .regime-primary {
-        padding: 1rem 1.05rem;
+        padding: 0.78rem 0.86rem;
         border-color: rgba(242, 193, 78, 0.35);
     }
     .regime-kicker,
     .regime-stat-label {
         color: var(--muted-2);
-        font-size: 0.68rem;
+        font-size: 0.63rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0;
     }
     .regime-title {
         color: var(--amber);
-        font-size: clamp(1.8rem, 5vw, 2.55rem);
+        font-size: clamp(1.45rem, 3vw, 2.0rem);
         font-weight: 780;
         line-height: 1.02;
         margin-top: 0.2rem;
     }
     .regime-caption {
         color: var(--muted);
-        font-size: 0.82rem;
-        margin-top: 0.4rem;
+        font-size: 0.76rem;
+        margin-top: 0.3rem;
     }
     .regime-stat {
-        padding: 0.9rem 0.85rem;
+        padding: 0.7rem 0.76rem;
     }
     .regime-stat-value {
         color: var(--text);
-        font-size: clamp(1.35rem, 3vw, 1.8rem);
+        font-size: clamp(1.18rem, 2.4vw, 1.52rem);
         font-weight: 760;
         line-height: 1.05;
         margin-top: 0.22rem;
     }
     .regime-stat-detail {
         color: var(--muted);
-        font-size: 0.76rem;
-        margin-top: 0.34rem;
+        font-size: 0.72rem;
+        margin-top: 0.25rem;
         line-height: 1.25;
     }
     .validation-strip {
-        padding: 0.72rem 0.85rem;
+        padding: 0.58rem 0.72rem;
         color: var(--muted);
-        font-size: 0.84rem;
+        font-size: 0.78rem;
         line-height: 1.4;
-        margin: 0.3rem 0 0.95rem;
+        margin: 0.22rem 0 0.72rem;
         border-left: 3px solid var(--blue);
     }
     .validation-strip strong {color: var(--text);}
     .status-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-        gap: 0.65rem;
-        margin: 1rem 0;
+        gap: 0.58rem;
+        margin: 0.75rem 0;
     }
     .status-chip,
     .callout-note {
@@ -214,7 +214,7 @@ st.markdown(
         border: 1px solid var(--line);
         border-radius: 8px;
     }
-    .status-chip {padding: 0.65rem 0.72rem; min-height: 72px;}
+    .status-chip {padding: 0.58rem 0.66rem; min-height: 60px;}
     .status-label {
         color: var(--muted-2);
         font-size: 0.68rem;
@@ -519,8 +519,29 @@ def esc(value: object) -> str:
     return html.escape(str(value), quote=True)
 
 
+LABEL_OVERRIDES = {
+    "avg_assigned_prob": "Avg assigned probability",
+    "best_scenario": "Best",
+    "confidence_t_proxy": "Confidence proxy",
+    "conviction_score": "Conviction",
+    "downside_loss_pct": "Downside",
+    "expected_return_pct": "Expected return",
+    "fragility_score": "Fragility",
+    "model_r2": "Model R2",
+    "policy_signal": "Policy",
+    "rank_stability": "Stability",
+    "residual_vol_pct": "Residual vol",
+    "scenario_dispersion_pct": "Dispersion",
+    "scenario_range_pct": "Scenario range",
+    "weighted_expected_return_pct": "Expected return",
+    "weighted_regret_pct": "Regret",
+    "worst_scenario": "Worst",
+}
+
+
 def label_text(value: str) -> str:
-    return value.replace("_", " ").title()
+    text = str(value)
+    return LABEL_OVERRIDES.get(text, text.replace("_", " ").title())
 
 
 def tone_for_status(value: str) -> str:
@@ -537,6 +558,7 @@ def tone_for_status(value: str) -> str:
 
 
 def render_header(data_month: str, source: str, run_id: str, active_section: str) -> None:
+    del run_id
     st.markdown(
         f"""
         <div class="dashboard-header">
@@ -547,8 +569,8 @@ def render_header(data_month: str, source: str, run_id: str, active_section: str
             </div>
             <div class="dashboard-meta">
                 <span>Data through {esc(data_month)}</span>
-                <span>Source: {esc(source)}</span>
-                <span>Run {esc(run_id)}</span>
+                <span>{esc(source)}</span>
+                <span>Research only</span>
                 <span>Section: {esc(active_section)}</span>
             </div>
         </div>
@@ -796,13 +818,15 @@ def render_leader_list(
             tone = "bad"
         elif lower_is_bad and value >= 0:
             tone = "good"
+        label_source = row.get("bucket", idx)
         subtitles = []
         for col in subtitle_cols:
             if col in row and pd.notna(row[col]):
+                if col == "bucket" and str(row[col]) == str(label_source):
+                    continue
                 formatted = subtitle_value(col, row[col])
                 if formatted:
                     subtitles.append(f"{label_text(col)}: {formatted}")
-        label_source = row.get("bucket", idx)
         cards.append(
             f'<div class="leader-card {tone}"><div><div class="leader-label">{esc(label_source)}</div><div class="leader-title">{esc(row.get(title_col, idx))}</div><div class="leader-meta">{esc(" | ".join(subtitles))}</div></div><div class="leader-value {tone}">{signed_pct(value, value_digits)}</div></div>'
         )
@@ -1610,9 +1634,9 @@ with st.sidebar:
     active_view = st.radio("Section", VIEW_NAMES, index=0, key="active_view")
 
 run_id = dashboard_run_id()
-data_month_display = expected_month.strftime("%Y-%m-%d") if pd.notna(expected_month) else "n/a"
-snapshot_source = state.get("source", refresh_info.get("source", "unknown"))
-render_header(data_month_display, snapshot_source, run_id, active_view)
+data_month_display = expected_month.strftime("%b %Y") if pd.notna(expected_month) else "n/a"
+source_display = "Public monthly proxies"
+render_header(data_month_display, source_display, run_id, active_view)
 
 if not refresh_info["ok"]:
     st.error(
@@ -2572,37 +2596,35 @@ if active_view == "Portfolio":
             r5.metric("Upside capture", f"{diag.get('Upside capture', np.nan):.0f}%")
             r6.metric("Downside capture", f"{diag.get('Downside capture', np.nan):.0f}%")
 
-            audit_left, audit_right = st.columns([1.25, 1.0])
-            with audit_left:
-                if not bt.rolling_metrics.empty:
-                    rolling = bt.rolling_metrics.copy()
-                    rolling["date"] = pd.to_datetime(rolling["date"])
-                    fig = go.Figure()
-                    fig.add_trace(
-                        go.Scatter(
-                            x=rolling["date"],
-                            y=rolling["strategy_sharpe"],
-                            name="Strategy 36m Sharpe",
-                            mode="lines",
-                            line={"color": "#2dd4bf", "width": 3},
-                        )
+            if not bt.rolling_metrics.empty:
+                rolling = bt.rolling_metrics.copy()
+                rolling["date"] = pd.to_datetime(rolling["date"])
+                fig = go.Figure()
+                fig.add_trace(
+                    go.Scatter(
+                        x=rolling["date"],
+                        y=rolling["strategy_sharpe"],
+                        name="Strategy 36m Sharpe",
+                        mode="lines",
+                        line={"color": "#2dd4bf", "width": 3},
                     )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=rolling["date"],
-                            y=rolling["spy_sharpe"],
-                            name="SPY 36m Sharpe",
-                            mode="lines",
-                            line={"color": "#60a5fa", "width": 3},
-                        )
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=rolling["date"],
+                        y=rolling["spy_sharpe"],
+                        name="SPY 36m Sharpe",
+                        mode="lines",
+                        line={"color": "#60a5fa", "width": 3},
                     )
-                    fig.add_hline(y=0, line_width=1, line_color=COLORS["unknown"])
-                    fig.update_layout(xaxis_title="", yaxis_title="36-month rolling Sharpe")
-                    polish_figure(fig, height=340)
-                    st.plotly_chart(fig, width="stretch")
-            with audit_right:
-                with st.expander("Benchmark diagnostics table", expanded=False):
-                    st.dataframe(format_pct_columns(bt.benchmark_diagnostics, ["value"]), width="stretch")
+                )
+                fig.add_hline(y=0, line_width=1, line_color=COLORS["unknown"])
+                fig.update_layout(xaxis_title="", yaxis_title="36-month rolling Sharpe")
+                polish_figure(fig, height=340)
+                st.plotly_chart(fig, width="stretch")
+
+            with st.expander("Benchmark diagnostics table", expanded=False):
+                st.dataframe(format_pct_columns(bt.benchmark_diagnostics, ["value"]), width="stretch")
 
             with st.expander("Cost and stress-test detail", expanded=False):
                 cost_left, stress_right = st.columns([1.0, 1.25])
@@ -2873,8 +2895,16 @@ if active_view == "Scenario Playbook":
     heatmap_bucket = st.selectbox("Stress-map bucket", ["All"] + sorted(stress["bucket"].dropna().unique()))
     heatmap_source = stress if heatmap_bucket == "All" else stress[stress["bucket"] == heatmap_bucket]
     heatmap_names = heatmap_source.sort_values("scenario_range_pct", ascending=False).head(20)
+    short_scenario_labels = {
+        "Dollar Wrecking Ball": "Dollar",
+        "Tightening + Rate Hikes": "Tightening",
+        "Easing + Rate Cuts": "Easing",
+        "Market Melt Up": "Melt Up",
+    }
     fig = px.imshow(
         heatmap_names[scenario_cols],
+        x=[short_scenario_labels.get(col, col) for col in scenario_cols],
+        y=heatmap_names.index,
         aspect="auto",
         color_continuous_midpoint=0,
         labels={"x": "Scenario", "y": "Ticker", "color": "Expected %"},
@@ -3196,8 +3226,9 @@ if active_view == "Diagnostics":
 
     st.subheader("Correlation heatmap: relative returns vs macro factors")
     corr = result.corr.join(universe.set_index("ticker")[["name", "bucket"]], how="left")
-    bucket_filter = st.multiselect("Buckets", sorted(corr["bucket"].dropna().unique()), default=sorted(corr["bucket"].dropna().unique()))
-    corr_filtered = corr[corr["bucket"].isin(bucket_filter)][FACTOR_COLUMNS]
+    bucket_focus = st.selectbox("Bucket focus", ["All"] + sorted(corr["bucket"].dropna().unique()), key="corr_bucket_focus")
+    corr_filtered = corr if bucket_focus == "All" else corr[corr["bucket"].eq(bucket_focus)]
+    corr_filtered = corr_filtered[FACTOR_COLUMNS]
     fig = px.imshow(
         corr_filtered,
         aspect="auto",
@@ -3234,6 +3265,7 @@ if active_view == "Data":
             {
                 "area": "Asset universe",
                 "source": "Yahoo Finance via yfinance",
+                "display_source": "Yahoo / yfinance",
                 "frequency": "Completed month-end closes",
                 "live_status": "Public market data, refreshed by scheduled/manual GitHub workflow",
                 "limitation": "ETF/proxy universe, not full security master or execution venue feed",
@@ -3241,6 +3273,7 @@ if active_view == "Data":
             {
                 "area": "Macro factors",
                 "source": f"{source_name}; Yahoo factor proxies plus FRED {', '.join(fred_series.values()) if fred_series else 'series'}",
+                "display_source": "Public proxy factors",
                 "frequency": "Monthly proxy levels",
                 "live_status": "Latest-revised public data",
                 "limitation": "Not ALFRED point-in-time vintages; revisions are disclosed in diagnostics",
@@ -3248,6 +3281,7 @@ if active_view == "Data":
             {
                 "area": "Scenario definitions",
                 "source": "Local config/scenarios.csv",
+                "display_source": "Local scenario config",
                 "frequency": "Static until edited",
                 "live_status": "Model inputs, not downloaded observations",
                 "limitation": "Hand-defined macro states require validation and calibration",
@@ -3255,6 +3289,7 @@ if active_view == "Data":
             {
                 "area": "Backtest decisions",
                 "source": "Walk-forward model using rows dated on or before rebalance month-end",
+                "display_source": "Month-end walk-forward",
                 "frequency": "Monthly",
                 "live_status": "Mechanical date-boundary audited",
                 "limitation": "Still uses latest-revised macro proxies and simplified transaction costs",
@@ -3264,7 +3299,7 @@ if active_view == "Data":
     st.caption(f"Tracked Yahoo/FRED symbols: {yahoo_count}. Amber status means the latest rows are present, but proxy and vintage limitations remain.")
     render_card_grid(
         [
-            {"label": row["frequency"], "title": row["area"], "value": row["source"].split(";")[0], "meta": row["limitation"], "tone": "neutral"}
+            {"label": row["frequency"], "title": row["area"], "value": row["display_source"], "meta": row["limitation"], "tone": "neutral"}
             for _, row in provenance.iterrows()
         ]
     )
