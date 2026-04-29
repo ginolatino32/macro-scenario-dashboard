@@ -251,6 +251,229 @@ st.markdown(
         font-size: 0.9rem;
         line-height: 1.45;
     }
+    .overlay-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin: 0.9rem 0 1.0rem;
+    }
+    .overlay-card {
+        --overlay-color: var(--amber);
+        background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
+        border: 1px solid var(--line);
+        border-top: 3px solid var(--overlay-color);
+        border-radius: 8px;
+        padding: 0.9rem 0.95rem 1.0rem;
+        min-width: 0;
+    }
+    .overlay-layer {
+        color: var(--muted-2);
+        font-size: 0.68rem;
+        font-weight: 760;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        margin-bottom: 0.45rem;
+    }
+    .overlay-lead {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.7rem;
+        align-items: start;
+        padding-bottom: 0.7rem;
+        margin-bottom: 0.65rem;
+        border-bottom: 1px solid var(--line);
+    }
+    .overlay-lead-label {
+        color: var(--text);
+        font-size: 1.03rem;
+        font-weight: 720;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+    .overlay-lead-value {
+        color: var(--overlay-color);
+        font-size: 1.45rem;
+        font-weight: 780;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .overlay-rows {
+        display: grid;
+        gap: 0.56rem;
+    }
+    .overlay-row-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.65rem;
+        align-items: baseline;
+        margin-bottom: 0.18rem;
+    }
+    .overlay-row-label {
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 610;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+    .overlay-row-value {
+        color: var(--muted);
+        font-size: 0.8rem;
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .overlay-track {
+        height: 0.48rem;
+        background: rgba(244,239,231,0.08);
+        border: 1px solid rgba(244,239,231,0.06);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    .overlay-bar {
+        height: 100%;
+        min-width: 2px;
+        background: var(--overlay-color);
+        border-radius: inherit;
+    }
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 0.72rem;
+        margin: 0.9rem 0 1.05rem;
+    }
+    .mini-card,
+    .position-card,
+    .leader-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        min-width: 0;
+    }
+    .mini-card {
+        padding: 0.78rem 0.82rem;
+        border-top: 2px solid var(--line-strong);
+    }
+    .mini-card.good,
+    .position-card.long,
+    .leader-card.good {border-color: rgba(45, 212, 191, 0.28); border-top-color: var(--teal);}
+    .mini-card.bad,
+    .position-card.short,
+    .leader-card.bad {border-color: rgba(255, 107, 74, 0.30); border-top-color: var(--coral);}
+    .mini-card.neutral,
+    .leader-card.neutral {border-color: rgba(242, 193, 78, 0.22); border-top-color: var(--amber);}
+    .mini-card.info {border-color: rgba(138, 180, 248, 0.26); border-top-color: var(--blue);}
+    .mini-card.good .mini-value {color: var(--teal);}
+    .mini-card.bad .mini-value {color: var(--coral);}
+    .mini-card.neutral .mini-value {color: var(--amber);}
+    .mini-card.info .mini-value {color: var(--blue);}
+    .mini-label,
+    .position-label,
+    .leader-label {
+        color: var(--muted-2);
+        font-size: 0.66rem;
+        font-weight: 760;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        margin-bottom: 0.32rem;
+    }
+    .mini-title,
+    .position-title,
+    .leader-title {
+        color: var(--text);
+        font-size: 0.98rem;
+        font-weight: 710;
+        line-height: 1.22;
+        overflow-wrap: anywhere;
+    }
+    .mini-value,
+    .leader-value {
+        color: var(--amber);
+        font-size: 1.34rem;
+        font-weight: 780;
+        line-height: 1.05;
+        margin-top: 0.38rem;
+        font-variant-numeric: tabular-nums;
+    }
+    .mini-meta,
+    .position-meta,
+    .leader-meta {
+        color: var(--muted);
+        font-size: 0.76rem;
+        line-height: 1.32;
+        margin-top: 0.36rem;
+    }
+    .position-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin: 0.85rem 0 1.05rem;
+    }
+    .position-group {
+        display: grid;
+        gap: 0.55rem;
+        align-content: start;
+    }
+    .position-group-title {
+        color: var(--muted-2);
+        font-size: 0.7rem;
+        font-weight: 760;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        margin-bottom: 0.1rem;
+    }
+    .position-card {
+        padding: 0.72rem 0.76rem;
+    }
+    .position-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.55rem;
+        align-items: baseline;
+    }
+    .position-ticker {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 690;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .position-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.45rem;
+        margin-top: 0.58rem;
+    }
+    .position-stat span {
+        display: block;
+        color: var(--muted-2);
+        font-size: 0.62rem;
+        font-weight: 720;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        margin-bottom: 0.14rem;
+    }
+    .position-stat strong {
+        color: var(--text);
+        font-size: 0.84rem;
+        font-weight: 720;
+        font-variant-numeric: tabular-nums;
+    }
+    .leader-list {
+        display: grid;
+        gap: 0.56rem;
+        margin: 0.75rem 0 1.0rem;
+    }
+    .leader-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.8rem;
+        align-items: center;
+        padding: 0.72rem 0.82rem;
+    }
+    .leader-value.good {color: var(--teal);}
+    .leader-value.bad {color: var(--coral);}
+    .leader-value.neutral {color: var(--amber);}
     div[data-testid="stMetric"] {
         background: var(--panel-bg);
         border: 1px solid var(--line);
@@ -260,13 +483,31 @@ st.markdown(
     div[data-testid="stMetricLabel"] p {font-size: 0.74rem; color: var(--muted); font-weight: 700; text-transform: uppercase;}
     div[data-testid="stMetricValue"] {letter-spacing: 0; font-size: 1.45rem;}
     .stDataFrame {border: 1px solid var(--line); border-radius: 8px; overflow: hidden;}
-    div[data-testid="stAlert"] {border-radius: 8px; border: 1px solid var(--line-strong);}
+    div[data-testid="stAlert"] {
+        background: rgba(242, 193, 78, 0.075);
+        border-radius: 8px;
+        border: 1px solid rgba(242, 193, 78, 0.24);
+        border-left: 3px solid var(--amber);
+        color: var(--text);
+    }
+    div[data-testid="stAlert"] * {color: var(--text);}
+    div[data-baseweb="tag"] {
+        background: rgba(138, 180, 248, 0.12) !important;
+        border: 1px solid rgba(138, 180, 248, 0.22) !important;
+        border-radius: 7px !important;
+        color: var(--text) !important;
+    }
+    div[data-baseweb="tag"] span {color: var(--text) !important;}
+    div[data-baseweb="tag"] svg {fill: var(--muted) !important;}
     button[kind="secondary"], div[data-testid="stDownloadButton"] button {border-radius: 7px;}
     @media (max-width: 720px) {
         .block-container {padding: 1rem 1rem 2rem;}
         h1 {font-size: 2.05rem;}
         .regime-summary {grid-template-columns: 1fr 1fr;}
         .regime-primary {grid-column: 1 / -1;}
+        .overlay-grid {grid-template-columns: 1fr;}
+        .position-grid {grid-template-columns: 1fr;}
+        .position-stats {grid-template-columns: 1fr 1fr;}
     }
     </style>
     """,
@@ -372,6 +613,200 @@ def render_status_grid(items: list[dict[str, object]]) -> None:
 
 def render_note(text: str) -> None:
     st.markdown(f'<div class="callout-note">{esc(text)}</div>', unsafe_allow_html=True)
+
+
+def format_probability_label(value: float) -> str:
+    pct = float(value)
+    if not np.isfinite(pct):
+        return "n/a"
+    if 0 < abs(pct) < 0.05:
+        return "<0.1%"
+    return f"{pct:.1f}%"
+
+
+def render_overlay_breakdown(overlay_view: pd.DataFrame) -> None:
+    layer_order = ["Core regime", "Policy / liquidity overlay", "Stress overlay"]
+    layer_titles = {
+        "Core regime": "Core macro regime",
+        "Policy / liquidity overlay": "Policy and liquidity",
+        "Stress overlay": "Stress overlay",
+    }
+    layer_colors = {
+        "Core regime": COLORS["accent"],
+        "Policy / liquidity overlay": COLORS["positive"],
+        "Stress overlay": COLORS["negative"],
+    }
+    cards = []
+    for layer in layer_order:
+        layer_frame = overlay_view.loc[overlay_view["layer"].eq(layer)].copy()
+        if layer_frame.empty:
+            continue
+        layer_frame["probability_pct"] = pd.to_numeric(layer_frame["probability_pct"], errors="coerce").fillna(0.0)
+        layer_frame = layer_frame.sort_values("probability_pct", ascending=False)
+        lead = layer_frame.iloc[0]
+        rows = []
+        for _, row in layer_frame.iterrows():
+            pct = float(row["probability_pct"])
+            width = max(0.0, min(100.0, pct))
+            bar_style = f"width:{width:.3f}%;"
+            if width <= 0:
+                bar_style += "min-width:0;"
+            rows.append(
+                f'<div class="overlay-row"><div class="overlay-row-head"><div class="overlay-row-label">{esc(row["state"])}</div><div class="overlay-row-value">{format_probability_label(pct)}</div></div><div class="overlay-track"><div class="overlay-bar" style="{bar_style}"></div></div></div>'
+            )
+        color = layer_colors[layer]
+        cards.append(
+            f'<div class="overlay-card" style="--overlay-color:{color};"><div class="overlay-layer">{esc(layer_titles[layer])}</div><div class="overlay-lead"><div class="overlay-lead-label">{esc(lead["state"])}</div><div class="overlay-lead-value">{format_probability_label(float(lead["probability_pct"]))}</div></div><div class="overlay-rows">{"".join(rows)}</div></div>'
+        )
+    st.markdown(f'<div class="overlay-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def signed_pct(value: float, digits: int = 2) -> str:
+    val = float(value)
+    if not np.isfinite(val):
+        return "n/a"
+    return f"{val:+.{digits}f}%"
+
+
+def plain_pct(value: float, digits: int = 1) -> str:
+    val = float(value)
+    if not np.isfinite(val):
+        return "n/a"
+    return f"{val:.{digits}f}%"
+
+
+def tone_from_signed(value: float, neutral_band: float = 0.05) -> str:
+    val = float(value) if np.isfinite(value) else 0.0
+    if val > neutral_band:
+        return "good"
+    if val < -neutral_band:
+        return "bad"
+    return "neutral"
+
+
+def render_card_grid(items: list[dict[str, object]]) -> None:
+    cards = []
+    for item in items:
+        tone = esc(item.get("tone", "neutral"))
+        label = esc(item.get("label", ""))
+        title = esc(item.get("title", ""))
+        value = esc(item.get("value", ""))
+        meta = esc(item.get("meta", ""))
+        title_html = f'<div class="mini-title">{title}</div>' if title else ""
+        value_html = f'<div class="mini-value">{value}</div>' if value else ""
+        meta_html = f'<div class="mini-meta">{meta}</div>' if meta else ""
+        cards.append(f'<div class="mini-card {tone}"><div class="mini-label">{label}</div>{title_html}{value_html}{meta_html}</div>')
+    st.markdown(f'<div class="card-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def render_bucket_cards(bucket_view: pd.DataFrame, limit: int = 7) -> None:
+    items = []
+    for _, row in bucket_view.sort_values("avg_conviction_score", ascending=False).head(limit).iterrows():
+        conviction = float(row.get("avg_conviction_score", np.nan))
+        expected = float(row.get("avg_expected_return_pct", np.nan))
+        top_name = row.get("top_name", "n/a")
+        r2 = float(row.get("avg_model_r2", np.nan))
+        items.append(
+            {
+                "label": row.get("tilt", bucket_tilt_label(conviction)),
+                "title": row.get("bucket", ""),
+                "value": signed_pct(expected),
+                "meta": f"Lead: {top_name} | conviction {conviction:.2f} | R2 {r2:.2f}",
+                "tone": tone_from_signed(conviction, neutral_band=0.25),
+            }
+        )
+    render_card_grid(items)
+
+
+def render_macro_state_cards(feature_view: pd.DataFrame, limit: int = 12) -> None:
+    items = []
+    for factor_name, row in feature_view.head(limit).iterrows():
+        value = float(row.get("value", np.nan))
+        magnitude = abs(value) if np.isfinite(value) else np.nan
+        if not np.isfinite(value):
+            tone = "neutral"
+        elif value > 0.25:
+            tone = "good"
+        elif value < -0.25:
+            tone = "bad"
+        else:
+            tone = "info"
+        items.append(
+            {
+                "label": "Macro input",
+                "title": label_text(str(factor_name)),
+                "value": "n/a" if not np.isfinite(value) else f"{value:+.2f}z",
+                "meta": "Near trend" if np.isfinite(magnitude) and magnitude < 0.50 else "Dominant latest signal",
+                "tone": tone,
+            }
+        )
+    render_card_grid(items)
+
+
+def render_position_cards(basket: pd.DataFrame, max_per_side: int = 6) -> None:
+    groups = [
+        ("Long / overweight", "Long book", "long"),
+        ("Short / underweight", "Hedge book", "short"),
+    ]
+    group_html = []
+    for side, title, tone in groups:
+        side_frame = basket.loc[basket["side"].eq(side)].copy()
+        if side_frame.empty:
+            continue
+        side_frame = side_frame.sort_values("expected_contribution_pct", ascending=(tone == "short")).head(max_per_side)
+        cards = []
+        for ticker, row in side_frame.iterrows():
+            weight = row.get("portfolio_weight_pct", row.get("weight_pct", np.nan))
+            cards.append(
+                f'<div class="position-card {tone}"><div class="position-head"><div><div class="position-label">{esc(row.get("bucket", ""))}</div><div class="position-title">{esc(row.get("name", ticker))}</div></div><div class="position-ticker">{esc(ticker)}</div></div><div class="position-stats"><div class="position-stat"><span>Weight</span><strong>{signed_pct(float(weight))}</strong></div><div class="position-stat"><span>Return</span><strong>{signed_pct(float(row.get("expected_return_pct", np.nan)))}</strong></div><div class="position-stat"><span>R2</span><strong>{float(row.get("model_r2", np.nan)):.2f}</strong></div></div></div>'
+            )
+        group_html.append(f'<div class="position-group"><div class="position-group-title">{esc(title)}</div>{"".join(cards)}</div>')
+    st.markdown(f'<div class="position-grid">{"".join(group_html)}</div>', unsafe_allow_html=True)
+
+
+def render_leader_list(
+    frame: pd.DataFrame,
+    value_col: str,
+    title_col: str = "name",
+    subtitle_cols: list[str] | None = None,
+    value_digits: int = 2,
+    max_rows: int = 6,
+    lower_is_bad: bool = False,
+) -> None:
+    def subtitle_value(col: str, value: object) -> str:
+        if pd.isna(value):
+            return ""
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            numeric = float(value)
+            if "pct" in col:
+                if any(token in col for token in ["loss", "downside", "range"]):
+                    return plain_pct(numeric, 2)
+                return signed_pct(numeric, 2)
+            if "score" in col or "r2" in col.lower():
+                return f"{numeric:.2f}"
+            return f"{numeric:.2f}"
+        return str(value)
+
+    subtitle_cols = subtitle_cols or []
+    cards = []
+    for idx, row in frame.head(max_rows).iterrows():
+        value = float(row.get(value_col, np.nan))
+        tone = tone_from_signed(value)
+        if lower_is_bad and value < 0:
+            tone = "bad"
+        elif lower_is_bad and value >= 0:
+            tone = "good"
+        subtitles = []
+        for col in subtitle_cols:
+            if col in row and pd.notna(row[col]):
+                formatted = subtitle_value(col, row[col])
+                if formatted:
+                    subtitles.append(f"{label_text(col)}: {formatted}")
+        label_source = row.get("bucket", idx)
+        cards.append(
+            f'<div class="leader-card {tone}"><div><div class="leader-label">{esc(label_source)}</div><div class="leader-title">{esc(row.get(title_col, idx))}</div><div class="leader-meta">{esc(" | ".join(subtitles))}</div></div><div class="leader-value {tone}">{signed_pct(value, value_digits)}</div></div>'
+        )
+    st.markdown(f'<div class="leader-list">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
 def last_completed_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
@@ -1411,48 +1846,39 @@ if active_view == "Auto Regime":
     probability_detail = probability_detail.merge(prior_view, on="scenario", how="left")
     probability_detail["raw_probability_pct"] = probability_detail["raw_probability"] * 100.0
     probability_detail["transition_prior_pct"] = probability_detail["transition_prior_probability"] * 100.0
-    st.dataframe(
-        format_pct_columns(
-            probability_detail[
-                [
-                    "scenario",
-                    "probability_pct",
-                    "raw_probability_pct",
-                    "transition_prior_pct",
-                    "distance",
-                    "score",
-                    "is_unknown",
-                ]
-            ],
-            ["probability_pct", "raw_probability_pct", "transition_prior_pct", "distance", "score"],
-        ),
-        width="stretch",
-    )
+    with st.expander("Probability detail table", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                probability_detail[
+                    [
+                        "scenario",
+                        "probability_pct",
+                        "raw_probability_pct",
+                        "transition_prior_pct",
+                        "distance",
+                        "score",
+                        "is_unknown",
+                    ]
+                ],
+                ["probability_pct", "raw_probability_pct", "transition_prior_pct", "distance", "score"],
+            ),
+            width="stretch",
+        )
 
     st.subheader("Core regimes and overlays")
     st.caption("Model-implied preset weights are regrouped into core macro regime, policy/liquidity overlay, and stress overlay.")
     overlay_view = overlay_breakdown.copy()
-    fig = px.bar(
-        overlay_view,
-        x="probability_pct",
-        y="state",
-        color="layer",
-        facet_col="layer",
-        orientation="h",
-        text=overlay_view["probability_pct"].map(lambda x: f"{x:.1f}%"),
-        labels={"probability_pct": "Model-implied probability", "state": ""},
-        color_discrete_sequence=[COLORS["accent"], COLORS["positive"], COLORS["negative"]],
-    )
-    fig.update_yaxes(matches=None, showticklabels=True)
-    polish_figure(fig, height=360)
-    st.plotly_chart(fig, width="stretch")
-    st.dataframe(format_pct_columns(overlay_view, ["probability", "probability_pct"]), width="stretch")
+    render_overlay_breakdown(overlay_view)
+    with st.expander("Overlay detail table", expanded=False):
+        st.dataframe(format_pct_columns(overlay_view, ["probability", "probability_pct"]), width="stretch")
 
     st.subheader("Current macro state used by the probability engine")
     feature_view = auto_regime.latest_features.rename("value").to_frame()
     feature_view["abs_value"] = feature_view["value"].abs()
     feature_view = feature_view.sort_values("abs_value", ascending=False).head(12).drop(columns=["abs_value"])
-    st.dataframe(format_pct_columns(feature_view, ["value"]), width="stretch")
+    render_macro_state_cards(feature_view)
+    with st.expander("Macro input detail", expanded=False):
+        st.dataframe(format_pct_columns(feature_view, ["value"]), width="stretch")
 
 if active_view == "Investment Brief":
     st.subheader("Scenario allocation view")
@@ -1484,26 +1910,28 @@ if active_view == "Investment Brief":
         fig.add_vline(x=0, line_width=1, line_dash="dash", line_color=COLORS["unknown"])
         polish_figure(fig, height=420)
         st.plotly_chart(fig, width="stretch")
-        st.dataframe(
-            format_pct_columns(
-                bucket_view[
-                    [
-                        "bucket",
-                        "tilt",
-                        "avg_expected_return_pct",
-                        "avg_conviction_score",
-                        "avg_model_r2",
-                        "avg_residual_vol_pct",
-                        "top_name",
-                        "top_expected_return_pct",
-                        "bottom_name",
-                        "bottom_expected_return_pct",
-                    ]
-                ],
-                ["avg_expected_return_pct", "avg_conviction_score", "avg_model_r2", "avg_residual_vol_pct", "top_expected_return_pct", "bottom_expected_return_pct"],
-            ),
-            width="stretch",
-        )
+        render_bucket_cards(bucket_view)
+        with st.expander("Bucket allocation detail", expanded=False):
+            st.dataframe(
+                format_pct_columns(
+                    bucket_view[
+                        [
+                            "bucket",
+                            "tilt",
+                            "avg_expected_return_pct",
+                            "avg_conviction_score",
+                            "avg_model_r2",
+                            "avg_residual_vol_pct",
+                            "top_name",
+                            "top_expected_return_pct",
+                            "bottom_name",
+                            "bottom_expected_return_pct",
+                        ]
+                    ],
+                    ["avg_expected_return_pct", "avg_conviction_score", "avg_model_r2", "avg_residual_vol_pct", "top_expected_return_pct", "bottom_expected_return_pct"],
+                ),
+                width="stretch",
+            )
 
     st.subheader("Diversified scenario playbook")
     if result.trade_basket.empty:
@@ -1513,6 +1941,7 @@ if active_view == "Investment Brief":
         b1.metric("Expected basket contribution", f"{basket_edge:.2f}%")
         b2.metric("Average model R²", f"{result.trade_basket['model_r2'].mean():.2f}")
         b3.metric("Gross exposure", f"{result.trade_basket['portfolio_weight_pct'].abs().sum():.0f}%")
+        render_position_cards(result.trade_basket)
         basket_cols = [
             "side",
             "name",
@@ -1524,13 +1953,14 @@ if active_view == "Investment Brief":
             "model_r2",
             "policy_signal",
         ]
-        st.dataframe(
-            format_pct_columns(
-                result.trade_basket[basket_cols],
-                ["portfolio_weight_pct", "expected_return_pct", "expected_contribution_pct", "conviction_score", "model_r2"],
-            ),
-            width="stretch",
-        )
+        with st.expander("Full playbook basket detail", expanded=False):
+            st.dataframe(
+                format_pct_columns(
+                    result.trade_basket[basket_cols],
+                    ["portfolio_weight_pct", "expected_return_pct", "expected_contribution_pct", "conviction_score", "model_r2"],
+                ),
+                width="stretch",
+            )
 
 if active_view == "Probability Rankings":
     st.subheader("Probability-weighted robust ranking")
@@ -1574,6 +2004,25 @@ if active_view == "Probability Rankings":
     left, right = st.columns(2)
     with left:
         st.markdown("**Top robust assets**")
+        render_leader_list(rank_view.head(8), "weighted_expected_return_pct", subtitle_cols=["best_scenario", "worst_scenario"], max_rows=8)
+    with right:
+        st.markdown("**Most fragile high-upside assets**")
+        fragile = rank_view.sort_values(["fragility_score", "best_scenario_return_pct"], ascending=False).head(12)
+        fragile_cols = [
+            "name",
+            "bucket",
+            "fragility_score",
+            "best_scenario_return_pct",
+            "weighted_expected_return_pct",
+            "scenario_dispersion_pct",
+            "downside_loss_pct",
+            "best_scenario",
+            "worst_scenario",
+        ]
+        render_leader_list(fragile.head(8), "best_scenario_return_pct", subtitle_cols=["best_scenario", "worst_scenario"], max_rows=8)
+
+    with st.expander("Ranking detail tables", expanded=False):
+        st.markdown("**Top robust assets**")
         st.dataframe(
             format_pct_columns(
                 rank_view.head(12)[robust_cols],
@@ -1589,20 +2038,7 @@ if active_view == "Probability Rankings":
             ),
             width="stretch",
         )
-    with right:
         st.markdown("**Most fragile high-upside assets**")
-        fragile = rank_view.sort_values(["fragility_score", "best_scenario_return_pct"], ascending=False).head(12)
-        fragile_cols = [
-            "name",
-            "bucket",
-            "fragility_score",
-            "best_scenario_return_pct",
-            "weighted_expected_return_pct",
-            "scenario_dispersion_pct",
-            "downside_loss_pct",
-            "best_scenario",
-            "worst_scenario",
-        ]
         st.dataframe(
             format_pct_columns(
                 fragile[fragile_cols],
@@ -1619,21 +2055,23 @@ if active_view == "Probability Rankings":
 
     st.subheader("Assets to avoid under current probability distribution")
     avoid = rank_view.sort_values(["robust_score", "downside_loss_pct"], ascending=[True, False]).head(15)
-    st.dataframe(
-        format_pct_columns(
-            avoid[robust_cols],
-            [
-                "robust_score",
-                "weighted_expected_return_pct",
-                "scenario_dispersion_pct",
-                "downside_loss_pct",
-                "rank_stability",
-                "weighted_regret_pct",
-                "model_r2",
-            ],
-        ),
-        width="stretch",
-    )
+    render_leader_list(avoid.head(8), "weighted_expected_return_pct", subtitle_cols=["worst_scenario", "downside_loss_pct"], max_rows=8, lower_is_bad=True)
+    with st.expander("Avoid-list detail", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                avoid[robust_cols],
+                [
+                    "robust_score",
+                    "weighted_expected_return_pct",
+                    "scenario_dispersion_pct",
+                    "downside_loss_pct",
+                    "rank_stability",
+                    "weighted_regret_pct",
+                    "model_r2",
+                ],
+            ),
+            width="stretch",
+        )
 
 if active_view == "Portfolio":
     st.subheader("Probability-weighted optimized portfolio")
@@ -1668,66 +2106,68 @@ if active_view == "Portfolio":
         fig.add_vline(x=0, line_width=1, line_dash="dash", line_color=COLORS["unknown"])
         polish_figure(fig, height=520)
         st.plotly_chart(fig, width="stretch")
+        render_position_cards(weights_view)
 
-        left, right = st.columns([2, 1])
-        with left:
-            st.markdown("**Optimized asset weights**")
-            st.dataframe(
-                format_pct_columns(
-                    weights_view[
+        with st.expander("Optimizer construction detail", expanded=False):
+            left, right = st.columns([2, 1])
+            with left:
+                st.markdown("**Optimized asset weights**")
+                st.dataframe(
+                    format_pct_columns(
+                        weights_view[
+                            [
+                                "side",
+                                "name",
+                                "bucket",
+                                "weight_pct",
+                                "expected_return_pct",
+                                "expected_contribution_pct",
+                                "risk_contribution_pct",
+                                "model_r2",
+                                "residual_vol_pct",
+                            ]
+                        ],
                         [
-                            "side",
-                            "name",
-                            "bucket",
                             "weight_pct",
                             "expected_return_pct",
                             "expected_contribution_pct",
                             "risk_contribution_pct",
                             "model_r2",
                             "residual_vol_pct",
-                        ]
-                    ],
-                    [
-                        "weight_pct",
-                        "expected_return_pct",
-                        "expected_contribution_pct",
-                        "risk_contribution_pct",
-                        "model_r2",
-                        "residual_vol_pct",
-                    ],
-                ),
-                width="stretch",
-            )
-        with right:
-            st.markdown("**Bucket exposures**")
-            st.dataframe(
-                format_pct_columns(
-                    optimized_portfolio.bucket_weights,
-                    ["net_weight_pct", "gross_weight_pct", "expected_contribution_pct", "risk_contribution_pct"],
-                ),
-                width="stretch",
-            )
-            st.markdown("**Optimization controls**")
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {"constraint": "Max asset weight", "value": "12%"},
-                        {"constraint": "Max bucket gross", "value": "35%"},
-                        {"constraint": "Max net exposure", "value": "25%"},
-                        {"constraint": "Gross target", "value": "100%"},
-                        {"constraint": "Candidate screen", "value": "Top 28 risk-adjusted signals"},
-                        {"constraint": "Covariance lookback", "value": "60 months"},
-                        {"constraint": "Optimizer", "value": str(opt_stats.get("optimizer_status", "constrained SLSQP"))},
-                    ]
-                ),
-                width="stretch",
-            )
-            if not optimized_portfolio.constraint_audit.empty:
-                st.markdown("**Constraint audit**")
-                st.dataframe(
-                    format_pct_columns(optimized_portfolio.constraint_audit, ["actual_pct", "limit_pct"]),
+                        ],
+                    ),
                     width="stretch",
                 )
+            with right:
+                st.markdown("**Bucket exposures**")
+                st.dataframe(
+                    format_pct_columns(
+                        optimized_portfolio.bucket_weights,
+                        ["net_weight_pct", "gross_weight_pct", "expected_contribution_pct", "risk_contribution_pct"],
+                    ),
+                    width="stretch",
+                )
+                st.markdown("**Optimization controls**")
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {"constraint": "Max asset weight", "value": "12%"},
+                            {"constraint": "Max bucket gross", "value": "35%"},
+                            {"constraint": "Max net exposure", "value": "25%"},
+                            {"constraint": "Gross target", "value": "100%"},
+                            {"constraint": "Candidate screen", "value": "Top 28 risk-adjusted signals"},
+                            {"constraint": "Covariance lookback", "value": "60 months"},
+                            {"constraint": "Optimizer", "value": str(opt_stats.get("optimizer_status", "constrained SLSQP"))},
+                        ]
+                    ),
+                    width="stretch",
+                )
+                if not optimized_portfolio.constraint_audit.empty:
+                    st.markdown("**Constraint audit**")
+                    st.dataframe(
+                        format_pct_columns(optimized_portfolio.constraint_audit, ["actual_pct", "limit_pct"]),
+                        width="stretch",
+                    )
 
     st.subheader("Walk-forward optimizer validation")
     st.caption(
@@ -1795,64 +2235,65 @@ if active_view == "Portfolio":
         polish_figure(fig, height=460)
         st.plotly_chart(fig, width="stretch")
 
-        opt_left, opt_right = st.columns([1.2, 1.0])
-        with opt_left:
-            st.markdown("**Optimizer validation summary**")
-            display_series = [
-                "Optimized portfolio",
-                "Optimizer ex-crypto",
-                "Optimizer ex-commodities",
-                "SPY",
-                "60/40 SPY/AGG",
-                "Equal-weight active universe",
-                "Risk-parity proxy",
-            ]
-            st.dataframe(
-                format_pct_columns(
-                    opt_summary[opt_summary["series"].isin(display_series)],
-                    [
-                        "final_equity",
-                        "total_return_pct",
-                        "cagr_pct",
-                        "annual_vol_pct",
-                        "sharpe",
-                        "max_drawdown_pct",
-                        "hit_rate_pct",
-                        "avg_turnover_pct",
-                        "avg_cost_drag_pct",
-                    ],
-                ),
-                width="stretch",
-            )
-        with opt_right:
-            st.markdown("**Optimizer benchmark gate**")
-            if opt_bt.benchmark_tear_sheet.empty:
-                st.warning("Benchmark comparison is unavailable.")
-            else:
+        with st.expander("Optimizer validation tables", expanded=False):
+            opt_left, opt_right = st.columns([1.2, 1.0])
+            with opt_left:
+                st.markdown("**Optimizer validation summary**")
+                display_series = [
+                    "Optimized portfolio",
+                    "Optimizer ex-crypto",
+                    "Optimizer ex-commodities",
+                    "SPY",
+                    "60/40 SPY/AGG",
+                    "Equal-weight active universe",
+                    "Risk-parity proxy",
+                ]
                 st.dataframe(
                     format_pct_columns(
-                        opt_bt.benchmark_tear_sheet[
-                            opt_bt.benchmark_tear_sheet["benchmark"].isin(
-                                ["SPY", "60/40 SPY/AGG", "Equal-weight active universe", "Risk-parity proxy"]
-                            )
-                        ],
+                        opt_summary[opt_summary["series"].isin(display_series)],
                         [
-                            "strategy_cagr_pct",
-                            "benchmark_cagr_pct",
-                            "active_cagr_spread_pct",
-                            "strategy_sharpe",
-                            "benchmark_sharpe",
-                            "sharpe_spread",
-                            "tracking_error_pct",
-                            "information_ratio",
-                            "beta",
-                            "correlation",
-                            "strategy_max_dd_pct",
-                            "benchmark_max_dd_pct",
+                            "final_equity",
+                            "total_return_pct",
+                            "cagr_pct",
+                            "annual_vol_pct",
+                            "sharpe",
+                            "max_drawdown_pct",
+                            "hit_rate_pct",
+                            "avg_turnover_pct",
+                            "avg_cost_drag_pct",
                         ],
                     ),
                     width="stretch",
                 )
+            with opt_right:
+                st.markdown("**Optimizer benchmark gate**")
+                if opt_bt.benchmark_tear_sheet.empty:
+                    st.warning("Benchmark comparison is unavailable.")
+                else:
+                    st.dataframe(
+                        format_pct_columns(
+                            opt_bt.benchmark_tear_sheet[
+                                opt_bt.benchmark_tear_sheet["benchmark"].isin(
+                                    ["SPY", "60/40 SPY/AGG", "Equal-weight active universe", "Risk-parity proxy"]
+                                )
+                            ],
+                            [
+                                "strategy_cagr_pct",
+                                "benchmark_cagr_pct",
+                                "active_cagr_spread_pct",
+                                "strategy_sharpe",
+                                "benchmark_sharpe",
+                                "sharpe_spread",
+                                "tracking_error_pct",
+                                "information_ratio",
+                                "beta",
+                                "correlation",
+                                "strategy_max_dd_pct",
+                                "benchmark_max_dd_pct",
+                            ],
+                        ),
+                        width="stretch",
+                    )
 
         opt_placebo = placebo_audit_table(opt_bt, "Optimized portfolio")
         if not opt_placebo.empty:
@@ -1870,8 +2311,7 @@ if active_view == "Portfolio":
             pp4.metric("Sharpe percentile", f"{sharpe_row['strategy_percentile']:.1f}%")
             pp5.metric("Sharpe p-value", f"{sharpe_row['one_sided_p_value']:.3f}")
 
-            placebo_left, placebo_right = st.columns([1.0, 1.15])
-            with placebo_left:
+            with st.expander("Random-basket placebo detail", expanded=False):
                 st.dataframe(
                     format_pct_columns(
                         opt_placebo,
@@ -1885,39 +2325,50 @@ if active_view == "Portfolio":
                     ),
                     width="stretch",
                 )
-            with placebo_right:
-                placebo_dist = opt_bt.placebo_distribution.copy()
-                fig = px.histogram(
-                    placebo_dist,
-                    x="final_equity",
-                    nbins=28,
-                    labels={"final_equity": "Final equity"},
-                    color_discrete_sequence=[COLORS["neutral"]],
-                )
-                fig.add_vline(
-                    x=float(opt_row["final_equity"]),
-                    line_width=3,
-                    line_color=COLORS["positive"],
-                    annotation_text="Optimizer",
-                )
-                polish_figure(fig, height=320)
-                st.plotly_chart(fig, width="stretch")
+            placebo_dist = opt_bt.placebo_distribution.copy()
+            fig = px.histogram(
+                placebo_dist,
+                x="final_equity",
+                nbins=28,
+                labels={"final_equity": "Final equity"},
+                color_discrete_sequence=[COLORS["neutral"]],
+            )
+            fig.add_vline(
+                x=float(opt_row["final_equity"]),
+                line_width=3,
+                line_color=COLORS["positive"],
+                annotation_text="Optimizer",
+            )
+            polish_figure(fig, height=320)
+            st.plotly_chart(fig, width="stretch")
 
-        st.markdown("**Recent optimizer validation months**")
-        recent_opt = opt_bt.returns.sort_values("return_date", ascending=False).head(18).copy()
-        for col in ["modal_probability", "unknown_probability", "turnover", "cost_return"]:
-            if col in recent_opt:
-                recent_opt[f"{col}_pct"] = recent_opt[col] * 100.0
-        for col in ["strategy_return", "spy_return", "sixty_forty_return", "equal_weight_return", "risk_parity_return"]:
-            if col in recent_opt:
-                recent_opt[f"{col}_pct"] = (np.exp(recent_opt[col]) - 1.0) * 100.0
-        st.dataframe(
-            format_pct_columns(
-                recent_opt[
+        with st.expander("Recent optimizer validation months", expanded=False):
+            recent_opt = opt_bt.returns.sort_values("return_date", ascending=False).head(18).copy()
+            for col in ["modal_probability", "unknown_probability", "turnover", "cost_return"]:
+                if col in recent_opt:
+                    recent_opt[f"{col}_pct"] = recent_opt[col] * 100.0
+            for col in ["strategy_return", "spy_return", "sixty_forty_return", "equal_weight_return", "risk_parity_return"]:
+                if col in recent_opt:
+                    recent_opt[f"{col}_pct"] = (np.exp(recent_opt[col]) - 1.0) * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    recent_opt[
+                        [
+                            "as_of",
+                            "return_date",
+                            "modal_scenario",
+                            "modal_probability_pct",
+                            "unknown_probability_pct",
+                            "strategy_return_pct",
+                            "spy_return_pct",
+                            "sixty_forty_return_pct",
+                            "equal_weight_return_pct",
+                            "risk_parity_return_pct",
+                            "turnover_pct",
+                            "n_assets",
+                        ]
+                    ],
                     [
-                        "as_of",
-                        "return_date",
-                        "modal_scenario",
                         "modal_probability_pct",
                         "unknown_probability_pct",
                         "strategy_return_pct",
@@ -1926,22 +2377,10 @@ if active_view == "Portfolio":
                         "equal_weight_return_pct",
                         "risk_parity_return_pct",
                         "turnover_pct",
-                        "n_assets",
-                    ]
-                ],
-                [
-                    "modal_probability_pct",
-                    "unknown_probability_pct",
-                    "strategy_return_pct",
-                    "spy_return_pct",
-                    "sixty_forty_return_pct",
-                    "equal_weight_return_pct",
-                    "risk_parity_return_pct",
-                    "turnover_pct",
-                ],
-            ),
-            width="stretch",
-        )
+                    ],
+                ),
+                width="stretch",
+            )
 
     st.subheader("Walk-forward predicted-scenario portfolio vs SPY")
     st.caption(
@@ -2013,66 +2452,67 @@ if active_view == "Portfolio":
         polish_figure(fig, height=360)
         st.plotly_chart(fig, width="stretch")
 
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Performance summary**")
-            st.dataframe(
-                format_pct_columns(
-                    summary,
-                    [
-                        "final_equity",
-                        "total_return_pct",
-                        "cagr_pct",
-                        "annual_vol_pct",
-                        "sharpe",
-                        "max_drawdown_pct",
-                        "hit_rate_pct",
-                        "avg_monthly_return_pct",
-                        "best_month_pct",
-                        "worst_month_pct",
-                        "correlation_to_spy",
-                        "avg_turnover_pct",
-                    ],
-                ),
-                width="stretch",
-            )
-        with right:
-            st.markdown("**Scenario usage**")
-            st.dataframe(
-                format_pct_columns(
-                    bt.scenario_counts,
-                    [
-                        "avg_modal_probability_pct",
-                        "avg_strategy_return_pct",
-                        "avg_spy_return_pct",
-                        "hit_rate_pct",
-                    ],
-                ),
-                width="stretch",
-            )
+        with st.expander("Predicted-scenario performance tables", expanded=False):
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Performance summary**")
+                st.dataframe(
+                    format_pct_columns(
+                        summary,
+                        [
+                            "final_equity",
+                            "total_return_pct",
+                            "cagr_pct",
+                            "annual_vol_pct",
+                            "sharpe",
+                            "max_drawdown_pct",
+                            "hit_rate_pct",
+                            "avg_monthly_return_pct",
+                            "best_month_pct",
+                            "worst_month_pct",
+                            "correlation_to_spy",
+                            "avg_turnover_pct",
+                        ],
+                    ),
+                    width="stretch",
+                )
+            with right:
+                st.markdown("**Scenario usage**")
+                st.dataframe(
+                    format_pct_columns(
+                        bt.scenario_counts,
+                        [
+                            "avg_modal_probability_pct",
+                            "avg_strategy_return_pct",
+                            "avg_spy_return_pct",
+                            "hit_rate_pct",
+                        ],
+                    ),
+                    width="stretch",
+                )
 
-        if not bt.benchmark_tear_sheet.empty:
-            st.markdown("**Benchmark tear sheet**")
-            st.dataframe(
-                format_pct_columns(
-                    bt.benchmark_tear_sheet,
-                    [
-                        "strategy_cagr_pct",
-                        "benchmark_cagr_pct",
-                        "active_cagr_spread_pct",
-                        "strategy_sharpe",
-                        "benchmark_sharpe",
-                        "sharpe_spread",
-                        "tracking_error_pct",
-                        "information_ratio",
-                        "beta",
-                        "correlation",
-                        "strategy_max_dd_pct",
-                        "benchmark_max_dd_pct",
-                    ],
-                ),
-                width="stretch",
-            )
+            if not bt.benchmark_tear_sheet.empty:
+                st.markdown("**Benchmark tear sheet**")
+                st.dataframe(
+                    format_pct_columns(
+                        bt.benchmark_tear_sheet,
+                        [
+                            "strategy_cagr_pct",
+                            "benchmark_cagr_pct",
+                            "active_cagr_spread_pct",
+                            "strategy_sharpe",
+                            "benchmark_sharpe",
+                            "sharpe_spread",
+                            "tracking_error_pct",
+                            "information_ratio",
+                            "beta",
+                            "correlation",
+                            "strategy_max_dd_pct",
+                            "benchmark_max_dd_pct",
+                        ],
+                    ),
+                    width="stretch",
+                )
 
         bt_placebo = placebo_audit_table(bt, "Predicted scenario portfolio")
         if not bt_placebo.empty:
@@ -2090,8 +2530,7 @@ if active_view == "Portfolio":
             pb4.metric("Sharpe percentile", f"{sharpe_row['strategy_percentile']:.1f}%")
             pb5.metric("Sharpe p-value", f"{sharpe_row['one_sided_p_value']:.3f}")
 
-            placebo_left, placebo_right = st.columns([1.0, 1.15])
-            with placebo_left:
+            with st.expander("Predicted-scenario placebo detail", expanded=False):
                 st.dataframe(
                     format_pct_columns(
                         bt_placebo,
@@ -2105,23 +2544,22 @@ if active_view == "Portfolio":
                     ),
                     width="stretch",
                 )
-            with placebo_right:
-                placebo_dist = bt.placebo_distribution.copy()
-                fig = px.histogram(
-                    placebo_dist,
-                    x="final_equity",
-                    nbins=28,
-                    labels={"final_equity": "Final equity"},
-                    color_discrete_sequence=[COLORS["neutral"]],
-                )
-                fig.add_vline(
-                    x=float(strategy_row["final_equity"]),
-                    line_width=3,
-                    line_color=COLORS["positive"],
-                    annotation_text="Strategy",
-                )
-                polish_figure(fig, height=320)
-                st.plotly_chart(fig, width="stretch")
+            placebo_dist = bt.placebo_distribution.copy()
+            fig = px.histogram(
+                placebo_dist,
+                x="final_equity",
+                nbins=28,
+                labels={"final_equity": "Final equity"},
+                color_discrete_sequence=[COLORS["neutral"]],
+            )
+            fig.add_vline(
+                x=float(strategy_row["final_equity"]),
+                line_width=3,
+                line_color=COLORS["positive"],
+                annotation_text="Strategy",
+            )
+            polish_figure(fig, height=320)
+            st.plotly_chart(fig, width="stretch")
 
         if not bt.benchmark_diagnostics.empty:
             st.markdown("**Institutional risk audit**")
@@ -2163,69 +2601,31 @@ if active_view == "Portfolio":
                     polish_figure(fig, height=340)
                     st.plotly_chart(fig, width="stretch")
             with audit_right:
-                st.markdown("**Benchmark diagnostics**")
-                st.dataframe(format_pct_columns(bt.benchmark_diagnostics, ["value"]), width="stretch")
+                with st.expander("Benchmark diagnostics table", expanded=False):
+                    st.dataframe(format_pct_columns(bt.benchmark_diagnostics, ["value"]), width="stretch")
 
-            cost_left, stress_right = st.columns([1.0, 1.25])
-            with cost_left:
-                st.markdown("**Transaction-cost sensitivity**")
-                st.dataframe(
-                    format_pct_columns(
-                        bt.cost_sensitivity,
-                        [
-                            "final_equity",
-                            "total_return_pct",
-                            "cagr_pct",
-                            "annual_vol_pct",
-                            "sharpe",
-                            "max_drawdown_pct",
-                            "hit_rate_pct",
-                        ],
-                    ),
-                    width="stretch",
-                )
-            with stress_right:
-                st.markdown("**Worst SPY months stress test**")
-                stress_cols = [
-                    "return_date",
-                    "modal_scenario",
-                    "modal_probability_pct",
-                    "unknown_probability_pct",
-                    "strategy_return_pct",
-                    "spy_return_pct",
-                    "excess_return_pct",
-                    "turnover_pct",
-                    "n_assets",
-                ]
-                st.dataframe(
-                    format_pct_columns(
-                        bt.stress_months[stress_cols],
-                        [
-                            "modal_probability_pct",
-                            "unknown_probability_pct",
-                            "strategy_return_pct",
-                            "spy_return_pct",
-                            "excess_return_pct",
-                            "turnover_pct",
-                        ],
-                    ),
-                    width="stretch",
-                )
-
-        st.markdown("**Recent backtest months**")
-        recent_bt = bt.returns.sort_values("return_date", ascending=False).head(24).copy()
-        recent_bt["modal_probability_pct"] = recent_bt["modal_probability"] * 100.0
-        recent_bt["unknown_probability_pct"] = recent_bt["unknown_probability"] * 100.0
-        recent_bt["confidence_pct"] = recent_bt["confidence"] * 100.0
-        recent_bt["strategy_return_pct"] = (np.exp(recent_bt["strategy_return"]) - 1.0) * 100.0
-        recent_bt["spy_return_pct"] = (np.exp(recent_bt["spy_return"]) - 1.0) * 100.0
-        recent_bt["excess_return_pct"] = (np.exp(recent_bt["excess_return"]) - 1.0) * 100.0
-        recent_bt["turnover_pct"] = recent_bt["turnover"] * 100.0
-        st.dataframe(
-            format_pct_columns(
-                recent_bt[
-                    [
-                        "as_of",
+            with st.expander("Cost and stress-test detail", expanded=False):
+                cost_left, stress_right = st.columns([1.0, 1.25])
+                with cost_left:
+                    st.markdown("**Transaction-cost sensitivity**")
+                    st.dataframe(
+                        format_pct_columns(
+                            bt.cost_sensitivity,
+                            [
+                                "final_equity",
+                                "total_return_pct",
+                                "cagr_pct",
+                                "annual_vol_pct",
+                                "sharpe",
+                                "max_drawdown_pct",
+                                "hit_rate_pct",
+                            ],
+                        ),
+                        width="stretch",
+                    )
+                with stress_right:
+                    st.markdown("**Worst SPY months stress test**")
+                    stress_cols = [
                         "return_date",
                         "modal_scenario",
                         "modal_probability_pct",
@@ -2234,21 +2634,60 @@ if active_view == "Portfolio":
                         "spy_return_pct",
                         "excess_return_pct",
                         "turnover_pct",
-                        "n_longs",
-                        "n_shorts",
+                        "n_assets",
                     ]
-                ],
-                [
-                    "modal_probability_pct",
-                    "unknown_probability_pct",
-                    "strategy_return_pct",
-                    "spy_return_pct",
-                    "excess_return_pct",
-                    "turnover_pct",
-                ],
-            ),
-            width="stretch",
-        )
+                    st.dataframe(
+                        format_pct_columns(
+                            bt.stress_months[stress_cols],
+                            [
+                                "modal_probability_pct",
+                                "unknown_probability_pct",
+                                "strategy_return_pct",
+                                "spy_return_pct",
+                                "excess_return_pct",
+                                "turnover_pct",
+                            ],
+                        ),
+                        width="stretch",
+                    )
+
+        with st.expander("Recent backtest months", expanded=False):
+            recent_bt = bt.returns.sort_values("return_date", ascending=False).head(24).copy()
+            recent_bt["modal_probability_pct"] = recent_bt["modal_probability"] * 100.0
+            recent_bt["unknown_probability_pct"] = recent_bt["unknown_probability"] * 100.0
+            recent_bt["confidence_pct"] = recent_bt["confidence"] * 100.0
+            recent_bt["strategy_return_pct"] = (np.exp(recent_bt["strategy_return"]) - 1.0) * 100.0
+            recent_bt["spy_return_pct"] = (np.exp(recent_bt["spy_return"]) - 1.0) * 100.0
+            recent_bt["excess_return_pct"] = (np.exp(recent_bt["excess_return"]) - 1.0) * 100.0
+            recent_bt["turnover_pct"] = recent_bt["turnover"] * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    recent_bt[
+                        [
+                            "as_of",
+                            "return_date",
+                            "modal_scenario",
+                            "modal_probability_pct",
+                            "unknown_probability_pct",
+                            "strategy_return_pct",
+                            "spy_return_pct",
+                            "excess_return_pct",
+                            "turnover_pct",
+                            "n_longs",
+                            "n_shorts",
+                        ]
+                    ],
+                    [
+                        "modal_probability_pct",
+                        "unknown_probability_pct",
+                        "strategy_return_pct",
+                        "spy_return_pct",
+                        "excess_return_pct",
+                        "turnover_pct",
+                    ],
+                ),
+                width="stretch",
+            )
 
 if active_view == "Names":
     st.subheader("Universe quality and investability gate")
@@ -2261,16 +2700,37 @@ if active_view == "Names":
     g3.metric("Long/short eligible", f"{int(uq['allowed_long_short'].sum())}")
     g4.metric("Raw-source excluded", f"{int(uq['raw_source_excluded'].sum())}")
     g5.metric("Median investability", f"{uq['investability_score'].median():.0f}")
-    st.dataframe(
-        format_pct_columns(
-            uq[
+    leader_left, leader_right = st.columns(2)
+    with leader_left:
+        st.markdown("**Highest conviction names**")
+        render_leader_list(result.expected.sort_values("conviction_score", ascending=False), "expected_return_pct", subtitle_cols=["bucket", "policy_signal"], max_rows=6)
+    with leader_right:
+        st.markdown("**Lowest conviction names**")
+        render_leader_list(result.expected.sort_values("conviction_score", ascending=True), "expected_return_pct", subtitle_cols=["bucket", "policy_signal"], max_rows=6, lower_is_bad=True)
+    with st.expander("Universe quality detail", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                uq[
+                    [
+                        "ticker",
+                        "name",
+                        "bucket",
+                        "optimizer_included",
+                        "status",
+                        "raw_source_excluded",
+                        "investability_score",
+                        "proxy_quality_score",
+                        "liquidity_score",
+                        "cost_score",
+                        "coverage_pct",
+                        "annual_vol_pct",
+                        "max_abs_month_pct",
+                        "allowed_long_only",
+                        "allowed_long_short",
+                        "reason",
+                    ]
+                ],
                 [
-                    "ticker",
-                    "name",
-                    "bucket",
-                    "optimizer_included",
-                    "status",
-                    "raw_source_excluded",
                     "investability_score",
                     "proxy_quality_score",
                     "liquidity_score",
@@ -2278,37 +2738,24 @@ if active_view == "Names":
                     "coverage_pct",
                     "annual_vol_pct",
                     "max_abs_month_pct",
-                    "allowed_long_only",
-                    "allowed_long_short",
-                    "reason",
-                ]
-            ],
-            [
-                "investability_score",
-                "proxy_quality_score",
-                "liquidity_score",
-                "cost_score",
-                "coverage_pct",
-                "annual_vol_pct",
-                "max_abs_month_pct",
-            ],
-        ),
-        width="stretch",
-    )
+                ],
+            ),
+            width="stretch",
+        )
 
     st.subheader("Top and bottom expected outperformers by bucket")
     grouped = top_bottom_by_bucket(result.expected, n=top_n)
-    for bucket, tb in grouped.items():
-        st.markdown(f"### {bucket}")
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Top**")
-            st.dataframe(format_pct_columns(tb["top"], ["expected_return_pct", "confidence_t_proxy"]), width="stretch")
-        with right:
-            st.markdown("**Bottom**")
-            st.dataframe(format_pct_columns(tb["bottom"], ["expected_return_pct", "confidence_t_proxy"]), width="stretch")
+    with st.expander("Bucket-level top and bottom detail", expanded=False):
+        for bucket, tb in grouped.items():
+            st.markdown(f"### {bucket}")
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Top**")
+                st.dataframe(format_pct_columns(tb["top"], ["expected_return_pct", "confidence_t_proxy"]), width="stretch")
+            with right:
+                st.markdown("**Bottom**")
+                st.dataframe(format_pct_columns(tb["bottom"], ["expected_return_pct", "confidence_t_proxy"]), width="stretch")
 
-    st.subheader("Full ranking")
     full = result.expected.sort_values("conviction_score", ascending=False).copy()
     full_cols = [
         "name",
@@ -2321,20 +2768,21 @@ if active_view == "Names":
         "trailing_12m_return_pct",
         "confidence_t_proxy",
     ]
-    bucket_pick = st.multiselect(
-        "Filter buckets",
-        sorted(full["bucket"].dropna().unique()),
-        default=sorted(full["bucket"].dropna().unique()),
-        key="manual_bucket_filter",
-    )
-    full = full[full["bucket"].isin(bucket_pick)]
-    st.dataframe(
-        format_pct_columns(
-            full[full_cols],
-            ["expected_return_pct", "conviction_score", "model_r2", "residual_vol_pct", "trailing_12m_return_pct", "confidence_t_proxy"],
-        ),
-        width="stretch",
-    )
+    with st.expander("Full ranking explorer", expanded=False):
+        bucket_pick = st.multiselect(
+            "Filter buckets",
+            sorted(full["bucket"].dropna().unique()),
+            default=sorted(full["bucket"].dropna().unique()),
+            key="manual_bucket_filter",
+        )
+        full = full[full["bucket"].isin(bucket_pick)]
+        st.dataframe(
+            format_pct_columns(
+                full[full_cols],
+                ["expected_return_pct", "conviction_score", "model_r2", "residual_vol_pct", "trailing_12m_return_pct", "confidence_t_proxy"],
+            ),
+            width="stretch",
+        )
 
 if active_view == "Factor Attribution":
     st.subheader("Factor attribution")
@@ -2373,7 +2821,8 @@ if active_view == "Factor Attribution":
     fig.update_layout(xaxis_title="Contribution to expected relative return", yaxis_title="", height=380)
     polish_figure(fig, height=380)
     st.plotly_chart(fig, width="stretch")
-    st.dataframe(format_pct_columns(attribution, ["scenario_shock_z", "beta", "contribution_pct", "t_stat"]), width="stretch")
+    with st.expander("Factor attribution detail", expanded=False):
+        st.dataframe(format_pct_columns(attribution, ["scenario_shock_z", "beta", "contribution_pct", "t_stat"]), width="stretch")
 
 if active_view == "Scenario Playbook":
     st.subheader("Scenario comparison")
@@ -2385,13 +2834,21 @@ if active_view == "Scenario Playbook":
     comp_view = comp[["name", "bucket", "scenario_a", "scenario_b", "difference_pct"]].copy()
     comp_view["scenario_a_pct"] = comp_view["scenario_a"] * 100.0
     comp_view["scenario_b_pct"] = comp_view["scenario_b"] * 100.0
-    st.dataframe(
-        format_pct_columns(
-            comp_view[["name", "bucket", "scenario_a_pct", "scenario_b_pct", "difference_pct"]],
-            ["scenario_a_pct", "scenario_b_pct", "difference_pct"],
-        ),
-        width="stretch",
-    )
+    comp_left, comp_right = st.columns(2)
+    with comp_left:
+        st.markdown("**Most favored by current scenario**")
+        render_leader_list(comp_view.sort_values("difference_pct", ascending=False), "difference_pct", subtitle_cols=["bucket"], max_rows=6)
+    with comp_right:
+        st.markdown("**Least favored by current scenario**")
+        render_leader_list(comp_view.sort_values("difference_pct", ascending=True), "difference_pct", subtitle_cols=["bucket"], max_rows=6, lower_is_bad=True)
+    with st.expander("Scenario comparison detail", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                comp_view[["name", "bucket", "scenario_a_pct", "scenario_b_pct", "difference_pct"]],
+                ["scenario_a_pct", "scenario_b_pct", "difference_pct"],
+            ),
+            width="stretch",
+        )
 
     st.subheader("Preset stress map")
     scenario_cols = [c for c in scenario_expected.columns if c not in {"name", "bucket"}]
@@ -2402,13 +2859,16 @@ if active_view == "Scenario Playbook":
     stress["average_pct"] = stress[scenario_cols].mean(axis=1)
     stress["consistency_score"] = stress["average_pct"] / stress[scenario_cols].std(axis=1).replace(0, np.nan)
     stress_view = stress.sort_values("scenario_range_pct", ascending=False)
-    st.dataframe(
-        format_pct_columns(
-            stress_view[["name", "bucket", "best_scenario", "worst_scenario", "scenario_range_pct", "average_pct", "consistency_score"]],
-            ["scenario_range_pct", "average_pct", "consistency_score"],
-        ),
-        width="stretch",
-    )
+    st.markdown("**Highest scenario sensitivity**")
+    render_leader_list(stress_view, "scenario_range_pct", subtitle_cols=["best_scenario", "worst_scenario"], max_rows=6)
+    with st.expander("Preset stress detail", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                stress_view[["name", "bucket", "best_scenario", "worst_scenario", "scenario_range_pct", "average_pct", "consistency_score"]],
+                ["scenario_range_pct", "average_pct", "consistency_score"],
+            ),
+            width="stretch",
+        )
 
     heatmap_bucket = st.selectbox("Stress-map bucket", ["All"] + sorted(stress["bucket"].dropna().unique()))
     heatmap_source = stress if heatmap_bucket == "All" else stress[stress["bucket"] == heatmap_bucket]
@@ -2451,21 +2911,22 @@ if active_view == "Diagnostics":
     fig.add_hline(y=0, line_width=1, line_dash="dash", line_color=COLORS["unknown"])
     polish_figure(fig, height=520)
     st.plotly_chart(fig, width="stretch")
-    st.dataframe(
-        format_pct_columns(
-            diag[diag_cols],
-            [
-                "expected_return_pct",
-                "conviction_score",
-                "model_r2",
-                "residual_vol_pct",
-                "realized_vol_annual_pct",
-                "trailing_3m_return_pct",
-                "trailing_12m_return_pct",
-            ],
-        ),
-        width="stretch",
-    )
+    with st.expander("Model diagnostics table", expanded=False):
+        st.dataframe(
+            format_pct_columns(
+                diag[diag_cols],
+                [
+                    "expected_return_pct",
+                    "conviction_score",
+                    "model_r2",
+                    "residual_vol_pct",
+                    "realized_vol_annual_pct",
+                    "trailing_3m_return_pct",
+                    "trailing_12m_return_pct",
+                ],
+            ),
+            width="stretch",
+        )
 
     st.subheader("Walk-forward market-outcome validation")
     st.caption(
@@ -2499,34 +2960,48 @@ if active_view == "Diagnostics":
         else:
             st.error(market_validation_status["message"])
 
-        scorecard = market_validation_scorecard(market_validation_all)
-        if not scorecard.empty:
-            st.markdown("**Validation by ranking rule and universe variant**")
+        with st.expander("Market-outcome validation detail", expanded=False):
+            scorecard = market_validation_scorecard(market_validation_all)
+            if not scorecard.empty:
+                st.markdown("**Validation by ranking rule and universe variant**")
+                st.dataframe(
+                    format_pct_columns(
+                        scorecard,
+                        [
+                            "avg_rank_ic",
+                            "rank_ic_t_stat",
+                            "avg_top_minus_bottom_return_pct",
+                            "positive_spread_hit_pct",
+                            "avg_top_hit_rate_pct",
+                        ],
+                    ),
+                    width="stretch",
+                )
+
+            st.markdown("**Recent market-outcome tests**")
+            recent_market = market_validation.head(24).copy()
+            recent_market["modal_probability_pct"] = recent_market["modal_probability"] * 100.0
+            recent_market["unknown_probability_pct"] = recent_market["unknown_probability"] * 100.0
             st.dataframe(
                 format_pct_columns(
-                    scorecard,
-                    [
-                        "avg_rank_ic",
-                        "rank_ic_t_stat",
-                        "avg_top_minus_bottom_return_pct",
-                        "positive_spread_hit_pct",
-                        "avg_top_hit_rate_pct",
+                    recent_market[
+                        [
+                            "as_of",
+                            "return_date",
+                            "modal_scenario",
+                            "modal_probability_pct",
+                            "unknown_probability_pct",
+                            "rank_ic",
+                            "top_minus_bottom_return_pct",
+                            "top_avg_return_pct",
+                            "bottom_avg_return_pct",
+                            "top_hit_rate_pct",
+                            "valid_assets",
+                            "top_assets",
+                            "bottom_assets",
+                        ]
                     ],
-                ),
-                width="stretch",
-            )
-
-        st.markdown("**Recent market-outcome tests**")
-        recent_market = market_validation.head(24).copy()
-        recent_market["modal_probability_pct"] = recent_market["modal_probability"] * 100.0
-        recent_market["unknown_probability_pct"] = recent_market["unknown_probability"] * 100.0
-        st.dataframe(
-            format_pct_columns(
-                recent_market[
                     [
-                        "as_of",
-                        "return_date",
-                        "modal_scenario",
                         "modal_probability_pct",
                         "unknown_probability_pct",
                         "rank_ic",
@@ -2534,49 +3009,36 @@ if active_view == "Diagnostics":
                         "top_avg_return_pct",
                         "bottom_avg_return_pct",
                         "top_hit_rate_pct",
-                        "valid_assets",
-                        "top_assets",
-                        "bottom_assets",
-                    ]
-                ],
-                [
-                    "modal_probability_pct",
-                    "unknown_probability_pct",
-                    "rank_ic",
-                    "top_minus_bottom_return_pct",
-                    "top_avg_return_pct",
-                    "bottom_avg_return_pct",
-                    "top_hit_rate_pct",
-                ],
-            ),
-            width="stretch",
-        )
-        st.markdown("**Market validation by modal scenario**")
-        by_scenario = (
-            market_validation.groupby("modal_scenario", as_index=False)
-            .agg(
-                months=("rank_ic", "size"),
-                avg_rank_ic=("rank_ic", "mean"),
-                avg_top_minus_bottom_return_pct=("top_minus_bottom_return_pct", "mean"),
-                positive_spread_hit_pct=("positive_spread", lambda x: float(x.mean() * 100.0)),
-                avg_top_hit_rate_pct=("top_hit_rate_pct", "mean"),
-                avg_unknown_probability_pct=("unknown_probability", lambda x: float(x.mean() * 100.0)),
+                    ],
+                ),
+                width="stretch",
             )
-            .sort_values(["avg_rank_ic", "avg_top_minus_bottom_return_pct"], ascending=False)
-        )
-        st.dataframe(
-            format_pct_columns(
-                by_scenario,
-                [
-                    "avg_rank_ic",
-                    "avg_top_minus_bottom_return_pct",
-                    "positive_spread_hit_pct",
-                    "avg_top_hit_rate_pct",
-                    "avg_unknown_probability_pct",
-                ],
-            ),
-            width="stretch",
-        )
+            st.markdown("**Market validation by modal scenario**")
+            by_scenario = (
+                market_validation.groupby("modal_scenario", as_index=False)
+                .agg(
+                    months=("rank_ic", "size"),
+                    avg_rank_ic=("rank_ic", "mean"),
+                    avg_top_minus_bottom_return_pct=("top_minus_bottom_return_pct", "mean"),
+                    positive_spread_hit_pct=("positive_spread", lambda x: float(x.mean() * 100.0)),
+                    avg_top_hit_rate_pct=("top_hit_rate_pct", "mean"),
+                    avg_unknown_probability_pct=("unknown_probability", lambda x: float(x.mean() * 100.0)),
+                )
+                .sort_values(["avg_rank_ic", "avg_top_minus_bottom_return_pct"], ascending=False)
+            )
+            st.dataframe(
+                format_pct_columns(
+                    by_scenario,
+                    [
+                        "avg_rank_ic",
+                        "avg_top_minus_bottom_return_pct",
+                        "positive_spread_hit_pct",
+                        "avg_top_hit_rate_pct",
+                        "avg_unknown_probability_pct",
+                    ],
+                ),
+                width="stretch",
+            )
 
     st.subheader("Walk-forward investable-regime calibration")
     st.caption(
@@ -2594,60 +3056,61 @@ if active_view == "Diagnostics":
         mk4.metric("Avg Brier score", f"{market_cal_row['avg_brier_score']:.2f}")
         mk5.metric("Avg market-fit IC", f"{market_cal_row.get('avg_market_fit_rank_ic', np.nan):.2f}")
 
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Market-regime probability buckets**")
-            bucket_view = market_regime_calibration.probability_buckets.copy()
-            bucket_view["avg_assigned_probability_pct"] = bucket_view["avg_assigned_probability"] * 100.0
-            bucket_view["hit_rate_pct"] = bucket_view["hit_rate"] * 100.0
-            st.dataframe(
-                format_pct_columns(
-                    bucket_view[
+        with st.expander("Investable-regime calibration detail", expanded=False):
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Market-regime probability buckets**")
+                bucket_view = market_regime_calibration.probability_buckets.copy()
+                bucket_view["avg_assigned_probability_pct"] = bucket_view["avg_assigned_probability"] * 100.0
+                bucket_view["hit_rate_pct"] = bucket_view["hit_rate"] * 100.0
+                st.dataframe(
+                    format_pct_columns(
+                        bucket_view[
+                            [
+                                "probability_bucket",
+                                "observations",
+                                "avg_assigned_probability_pct",
+                                "hit_rate_pct",
+                                "avg_brier_score",
+                                "avg_market_fit_rank_ic",
+                            ]
+                        ],
+                        ["avg_assigned_probability_pct", "hit_rate_pct", "avg_brier_score", "avg_market_fit_rank_ic"],
+                    ),
+                    width="stretch",
+                )
+            with right:
+                st.markdown("**Recent investable-regime predictions**")
+                recent_market_regime = market_regime_calibration.recent_predictions.copy()
+                recent_market_regime["realized_probability_pct"] = recent_market_regime["realized_probability"] * 100.0
+                recent_market_regime["confidence_pct"] = recent_market_regime["confidence"] * 100.0
+                recent_market_regime["unknown_probability_pct"] = recent_market_regime["unknown_probability"] * 100.0
+                st.dataframe(
+                    format_pct_columns(
+                        recent_market_regime[
+                            [
+                                "as_of",
+                                "return_date",
+                                "modal_prediction",
+                                "realized_scenario",
+                                "realized_probability_pct",
+                                "top_hit",
+                                "market_fit_rank_ic",
+                                "confidence_pct",
+                                "unknown_probability_pct",
+                                "valid_assets",
+                            ]
+                        ],
                         [
-                            "probability_bucket",
-                            "observations",
-                            "avg_assigned_probability_pct",
-                            "hit_rate_pct",
-                            "avg_brier_score",
-                            "avg_market_fit_rank_ic",
-                        ]
-                    ],
-                    ["avg_assigned_probability_pct", "hit_rate_pct", "avg_brier_score", "avg_market_fit_rank_ic"],
-                ),
-                width="stretch",
-            )
-        with right:
-            st.markdown("**Recent investable-regime predictions**")
-            recent_market_regime = market_regime_calibration.recent_predictions.copy()
-            recent_market_regime["realized_probability_pct"] = recent_market_regime["realized_probability"] * 100.0
-            recent_market_regime["confidence_pct"] = recent_market_regime["confidence"] * 100.0
-            recent_market_regime["unknown_probability_pct"] = recent_market_regime["unknown_probability"] * 100.0
-            st.dataframe(
-                format_pct_columns(
-                    recent_market_regime[
-                        [
-                            "as_of",
-                            "return_date",
-                            "modal_prediction",
-                            "realized_scenario",
                             "realized_probability_pct",
                             "top_hit",
                             "market_fit_rank_ic",
                             "confidence_pct",
                             "unknown_probability_pct",
-                            "valid_assets",
-                        ]
-                    ],
-                    [
-                        "realized_probability_pct",
-                        "top_hit",
-                        "market_fit_rank_ic",
-                        "confidence_pct",
-                        "unknown_probability_pct",
-                    ],
-                ),
-                width="stretch",
-            )
+                        ],
+                    ),
+                    width="stretch",
+                )
 
     st.subheader("Walk-forward macro-label calibration")
     st.caption(
@@ -2662,50 +3125,51 @@ if active_view == "Diagnostics":
         k2.metric("Top hit rate", f"{cal_row['top_hit_rate'] * 100:.1f}%")
         k3.metric("Avg assigned prob", f"{cal_row['avg_realized_probability'] * 100:.1f}%")
         k4.metric("Avg Brier score", f"{cal_row['avg_brier_score']:.2f}")
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Probability buckets**")
-            bucket_view = calibration.probability_buckets.copy()
-            bucket_view["avg_assigned_probability_pct"] = bucket_view["avg_assigned_probability"] * 100.0
-            bucket_view["hit_rate_pct"] = bucket_view["hit_rate"] * 100.0
-            st.dataframe(
-                format_pct_columns(
-                    bucket_view[
-                        [
-                            "probability_bucket",
-                            "observations",
-                            "avg_assigned_probability_pct",
-                            "hit_rate_pct",
-                            "avg_brier_score",
-                        ]
-                    ],
-                    ["avg_assigned_probability_pct", "hit_rate_pct", "avg_brier_score"],
-                ),
-                width="stretch",
-            )
-        with right:
-            st.markdown("**Recent predictions**")
-            recent = calibration.recent_predictions.copy()
-            recent["realized_probability_pct"] = recent["realized_probability"] * 100.0
-            recent["confidence_pct"] = recent["confidence"] * 100.0
-            recent["unknown_probability_pct"] = recent["unknown_probability"] * 100.0
-            st.dataframe(
-                format_pct_columns(
-                    recent[
-                        [
-                            "as_of",
-                            "modal_prediction",
-                            "realized_scenario",
-                            "realized_probability_pct",
-                            "top_hit",
-                            "confidence_pct",
-                            "unknown_probability_pct",
-                        ]
-                    ],
-                    ["realized_probability_pct", "top_hit", "confidence_pct", "unknown_probability_pct"],
-                ),
-                width="stretch",
-            )
+        with st.expander("Macro-label calibration detail", expanded=False):
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Probability buckets**")
+                bucket_view = calibration.probability_buckets.copy()
+                bucket_view["avg_assigned_probability_pct"] = bucket_view["avg_assigned_probability"] * 100.0
+                bucket_view["hit_rate_pct"] = bucket_view["hit_rate"] * 100.0
+                st.dataframe(
+                    format_pct_columns(
+                        bucket_view[
+                            [
+                                "probability_bucket",
+                                "observations",
+                                "avg_assigned_probability_pct",
+                                "hit_rate_pct",
+                                "avg_brier_score",
+                            ]
+                        ],
+                        ["avg_assigned_probability_pct", "hit_rate_pct", "avg_brier_score"],
+                    ),
+                    width="stretch",
+                )
+            with right:
+                st.markdown("**Recent predictions**")
+                recent = calibration.recent_predictions.copy()
+                recent["realized_probability_pct"] = recent["realized_probability"] * 100.0
+                recent["confidence_pct"] = recent["confidence"] * 100.0
+                recent["unknown_probability_pct"] = recent["unknown_probability"] * 100.0
+                st.dataframe(
+                    format_pct_columns(
+                        recent[
+                            [
+                                "as_of",
+                                "modal_prediction",
+                                "realized_scenario",
+                                "realized_probability_pct",
+                                "top_hit",
+                                "confidence_pct",
+                                "unknown_probability_pct",
+                            ]
+                        ],
+                        ["realized_probability_pct", "top_hit", "confidence_pct", "unknown_probability_pct"],
+                    ),
+                    width="stretch",
+                )
 
     st.subheader("Reproducibility and mechanical date-boundary audit")
     st.caption(
@@ -2724,10 +3188,11 @@ if active_view == "Diagnostics":
         a4.metric("Run ID", run_id)
         a5.metric("Cache age", f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a")
         st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0`; vintage-data limitations remain separate and disclosed.")
-        st.dataframe(
-            audit.sort_values("return_date", ascending=False).head(36),
-            width="stretch",
-        )
+        with st.expander("Date-boundary audit rows", expanded=False):
+            st.dataframe(
+                audit.sort_values("return_date", ascending=False).head(36),
+                width="stretch",
+            )
 
     st.subheader("Correlation heatmap: relative returns vs macro factors")
     corr = result.corr.join(universe.set_index("ticker")[["name", "bucket"]], how="left")
@@ -2797,8 +3262,12 @@ if active_view == "Data":
         ]
     )
     st.caption(f"Tracked Yahoo/FRED symbols: {yahoo_count}. Amber status means the latest rows are present, but proxy and vintage limitations remain.")
-    st.dataframe(provenance, width="stretch")
-    st.markdown("**Stale and flatline source audit**")
+    render_card_grid(
+        [
+            {"label": row["frequency"], "title": row["area"], "value": row["source"].split(";")[0], "meta": row["limitation"], "tone": "neutral"}
+            for _, row in provenance.iterrows()
+        ]
+    )
     source_audit = source_audit_exact.copy()
     using_source_audit_fallback = source_audit.empty
     if source_audit.empty:
@@ -2809,71 +3278,76 @@ if active_view == "Data":
             ],
             ignore_index=True,
         )
-    if using_source_audit_fallback:
-        st.warning("Exact raw-source audit is not available in this app session; showing a conservative fallback from stored monthly rows.")
-    else:
-        excluded_count = int(pd.Series(source_audit.get("exclude_flag", False)).fillna(False).astype(bool).sum())
-        source_audit_kind = str(state.get("source_audit_kind", "raw_source_audit"))
-        if source_audit_kind == "committed_monthly_snapshot_fallback":
-            st.caption(
-                f"Committed source-audit snapshot loaded for {len(source_audit)} rows. "
-                f"Exclude flags: {excluded_count}. The snapshot is fail-closed for flatlines/stale monthly rows; run update_data.py with Yahoo/FRED access for raw source-date audit rows."
-            )
+    with st.expander("Data provenance detail", expanded=False):
+        st.dataframe(provenance, width="stretch")
+    with st.expander("Source audit and freshness detail", expanded=False):
+        if using_source_audit_fallback:
+            st.warning("Exact raw-source audit is not available in this app session; showing a conservative fallback from stored monthly rows.")
         else:
-            st.caption(
-                f"Exact raw-source audit loaded for {len(source_audit)} rows. "
-                f"Exclude flags: {excluded_count}. Yahoo daily sources use a 10-business-day lag rule; slower FRED liquidity data uses a wider documented lag rule."
-            )
-    st.dataframe(source_audit, width="stretch")
-    st.dataframe(freshness, width="stretch")
+            excluded_count = int(pd.Series(source_audit.get("exclude_flag", False)).fillna(False).astype(bool).sum())
+            source_audit_kind = str(state.get("source_audit_kind", "raw_source_audit"))
+            if source_audit_kind == "committed_monthly_snapshot_fallback":
+                st.caption(
+                    f"Committed source-audit snapshot loaded for {len(source_audit)} rows. "
+                    f"Exclude flags: {excluded_count}. The snapshot is fail-closed for flatlines/stale monthly rows; run update_data.py with Yahoo/FRED access for raw source-date audit rows."
+                )
+            else:
+                st.caption(
+                    f"Exact raw-source audit loaded for {len(source_audit)} rows. "
+                    f"Exclude flags: {excluded_count}. Yahoo daily sources use a 10-business-day lag rule; slower FRED liquidity data uses a wider documented lag rule."
+                )
+        st.dataframe(source_audit, width="stretch")
+        st.dataframe(freshness, width="stretch")
 
-    st.markdown("**Asset price quality**")
-    st.dataframe(
-        format_pct_columns(
-            price_quality[
-                [
-                    "series",
-                    "name",
-                    "status",
-                    "first_valid",
-                    "last_valid",
-                    "stale_months",
-                    "observations",
-                    "coverage_pct",
-                    "missing_values",
-                    "latest_value",
-                ]
-            ],
-            ["coverage_pct", "latest_value"],
-        ),
-        width="stretch",
-    )
-    st.markdown("**Macro factor quality**")
-    st.dataframe(
-        format_pct_columns(
-            factor_quality[
-                [
-                    "series",
-                    "status",
-                    "first_valid",
-                    "last_valid",
-                    "stale_months",
-                    "observations",
-                    "coverage_pct",
-                    "missing_values",
-                    "latest_value",
-                ]
-            ],
-            ["coverage_pct", "latest_value"],
-        ),
-        width="stretch",
-    )
-    st.markdown("**Macro scenario vector**")
-    st.dataframe(format_pct_columns(pd.DataFrame(scenario, columns=["value"]), ["value"]))
-    st.markdown("**Latest standardized macro impulse**")
-    latest_macro = result.factors_z.tail(1).T.rename(columns={result.factors_z.index[-1]: "latest_z"})
-    st.dataframe(format_pct_columns(latest_macro, ["latest_z"]))
-    st.markdown("**Universe**")
-    st.dataframe(universe, width="stretch")
-    st.markdown("**Latest factor rows**")
-    st.dataframe(factors.tail(), width="stretch")
+    with st.expander("Asset and macro quality detail", expanded=False):
+        st.markdown("**Asset price quality**")
+        st.dataframe(
+            format_pct_columns(
+                price_quality[
+                    [
+                        "series",
+                        "name",
+                        "status",
+                        "first_valid",
+                        "last_valid",
+                        "stale_months",
+                        "observations",
+                        "coverage_pct",
+                        "missing_values",
+                        "latest_value",
+                    ]
+                ],
+                ["coverage_pct", "latest_value"],
+            ),
+            width="stretch",
+        )
+        st.markdown("**Macro factor quality**")
+        st.dataframe(
+            format_pct_columns(
+                factor_quality[
+                    [
+                        "series",
+                        "status",
+                        "first_valid",
+                        "last_valid",
+                        "stale_months",
+                        "observations",
+                        "coverage_pct",
+                        "missing_values",
+                        "latest_value",
+                    ]
+                ],
+                ["coverage_pct", "latest_value"],
+            ),
+            width="stretch",
+        )
+    with st.expander("Model input snapshots", expanded=False):
+        st.markdown("**Macro scenario vector**")
+        st.dataframe(format_pct_columns(pd.DataFrame(scenario, columns=["value"]), ["value"]))
+        st.markdown("**Latest standardized macro impulse**")
+        latest_macro = result.factors_z.tail(1).T.rename(columns={result.factors_z.index[-1]: "latest_z"})
+        st.dataframe(format_pct_columns(latest_macro, ["latest_z"]))
+        st.markdown("**Universe**")
+        st.dataframe(universe, width="stretch")
+        st.markdown("**Latest factor rows**")
+        st.dataframe(factors.tail(), width="stretch")
