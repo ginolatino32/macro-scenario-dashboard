@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import html
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -51,41 +52,250 @@ VIEW_NAMES = [
 ]
 
 COLORS = {
-    "positive": "#14b8a6",
-    "negative": "#f97316",
-    "neutral": "#64748b",
-    "accent": "#3b82f6",
-    "unknown": "#94a3b8",
-    "grid": "rgba(148, 163, 184, 0.20)",
-    "paper": "#0f172a",
-    "plot": "#111827",
+    "positive": "#2dd4bf",
+    "negative": "#ff6b4a",
+    "neutral": "#a9a29a",
+    "accent": "#f2c14e",
+    "secondary": "#8ab4f8",
+    "unknown": "#8b8378",
+    "grid": "rgba(186, 177, 163, 0.18)",
+    "paper": "#11100f",
+    "plot": "#171513",
 }
 
 st.set_page_config(page_title="Macro Scenario Dashboard", layout="wide")
 px.defaults.template = "plotly_dark"
-st.title("Macro Scenario Dashboard")
-st.caption(
-    "Scenario-conditioned macro tilts, factor attribution, and model-quality diagnostics using public monthly market data and macro proxies. "
-    "Validate the proxy choices and model behavior before using capital."
-)
 
 st.markdown(
     """
     <style>
-    .block-container {max-width: 1320px; padding-top: 2.3rem;}
-    div[data-testid="stMetric"] {
-        background: rgba(15, 23, 42, 0.40);
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        border-radius: 8px;
-        padding: 0.85rem 0.95rem;
+    :root {
+        --page-bg: #11100f;
+        --panel-bg: #181715;
+        --panel-bg-2: #1f1c18;
+        --line: rgba(220, 210, 190, 0.14);
+        --line-strong: rgba(220, 210, 190, 0.24);
+        --text: #f4efe7;
+        --muted: #aaa197;
+        --muted-2: #81786f;
+        --teal: #2dd4bf;
+        --amber: #f2c14e;
+        --coral: #ff6b4a;
+        --blue: #8ab4f8;
     }
-    div[data-testid="stMetricLabel"] p {font-size: 0.82rem; color: #cbd5e1;}
-    div[data-testid="stMetricValue"] {letter-spacing: 0;}
-    .stDataFrame {border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 8px;}
+    html, body, .stApp {
+        background: var(--page-bg);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .block-container {max-width: 1180px; padding: 1.35rem 1.15rem 3rem;}
+    section[data-testid="stSidebar"] {
+        background: #151412;
+        border-right: 1px solid var(--line);
+    }
+    section[data-testid="stSidebar"] h2 {
+        color: var(--text);
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        margin-top: 1.1rem;
+    }
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] p {
+        color: var(--muted);
+        font-size: 0.84rem;
+    }
+    h1, h2, h3, h4, h5, h6 {letter-spacing: 0; color: var(--text);}
+    h1 {font-size: clamp(2.0rem, 5vw, 3.0rem); line-height: 1.04; margin-bottom: 0.45rem;}
+    h2 {font-size: 1.35rem; margin-top: 1.8rem;}
+    h3 {font-size: 1.05rem; margin-top: 1.35rem;}
+    p {color: var(--muted); line-height: 1.55;}
+    .dashboard-header {
+        border-bottom: 1px solid var(--line);
+        padding: 0.4rem 0 1.0rem;
+        margin-bottom: 1rem;
+    }
+    .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        color: var(--amber);
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        margin-bottom: 0.75rem;
+    }
+    .dashboard-subtitle {
+        max-width: 760px;
+        color: var(--muted);
+        font-size: 0.98rem;
+        margin: 0.1rem 0 0.85rem;
+    }
+    .dashboard-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        color: var(--muted-2);
+        font-size: 0.78rem;
+    }
+    .status-grid,
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+        gap: 0.65rem;
+        margin: 1rem 0;
+    }
+    .status-chip,
+    .kpi-card,
+    .callout-note {
+        background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
+        border: 1px solid var(--line);
+        border-radius: 8px;
+    }
+    .status-chip {padding: 0.65rem 0.72rem; min-height: 72px;}
+    .status-label,
+    .kpi-label {
+        color: var(--muted-2);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        margin-bottom: 0.25rem;
+    }
+    .status-value {
+        color: var(--text);
+        font-size: 0.92rem;
+        font-weight: 650;
+        line-height: 1.25;
+    }
+    .status-detail {
+        color: var(--muted);
+        font-size: 0.72rem;
+        margin-top: 0.2rem;
+        line-height: 1.25;
+    }
+    .tone-good {border-color: rgba(45, 212, 191, 0.35);}
+    .tone-good .status-value, .tone-good .kpi-value {color: var(--teal);}
+    .tone-warn {border-color: rgba(242, 193, 78, 0.38);}
+    .tone-warn .status-value, .tone-warn .kpi-value {color: var(--amber);}
+    .tone-bad {border-color: rgba(255, 107, 74, 0.40);}
+    .tone-bad .status-value, .tone-bad .kpi-value {color: var(--coral);}
+    .tone-info {border-color: rgba(138, 180, 248, 0.34);}
+    .tone-info .status-value, .tone-info .kpi-value {color: var(--blue);}
+    .kpi-card {padding: 0.85rem 0.9rem; min-height: 98px;}
+    .kpi-value {
+        color: var(--text);
+        font-size: clamp(1.5rem, 4vw, 2.15rem);
+        font-weight: 750;
+        line-height: 1.05;
+    }
+    .kpi-subvalue {
+        color: var(--muted);
+        font-size: 0.78rem;
+        margin-top: 0.35rem;
+    }
+    .callout-note {
+        border-left: 3px solid var(--amber);
+        padding: 0.8rem 0.9rem;
+        margin: 0.85rem 0 1rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+    div[data-testid="stMetric"] {
+        background: var(--panel-bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.75rem 0.85rem;
+    }
+    div[data-testid="stMetricLabel"] p {font-size: 0.74rem; color: var(--muted); font-weight: 700; text-transform: uppercase;}
+    div[data-testid="stMetricValue"] {letter-spacing: 0; font-size: 1.45rem;}
+    .stDataFrame {border: 1px solid var(--line); border-radius: 8px; overflow: hidden;}
+    div[data-testid="stAlert"] {border-radius: 8px; border: 1px solid var(--line-strong);}
+    button[kind="secondary"], div[data-testid="stDownloadButton"] button {border-radius: 7px;}
+    @media (max-width: 720px) {
+        .block-container {padding: 1rem 1rem 2rem;}
+        h1 {font-size: 2.05rem;}
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def esc(value: object) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def label_text(value: str) -> str:
+    return value.replace("_", " ").title()
+
+
+def tone_for_status(value: str) -> str:
+    normalized = str(value).lower()
+    if normalized in {"pass", "green", "validated", "high"}:
+        return "good"
+    if normalized in {"weak", "red", "fail"}:
+        return "bad"
+    if "open" in normalized or normalized in {"medium"}:
+        return "info"
+    if normalized in {"amber", "not validated", "unavailable", "low"}:
+        return "warn"
+    return "neutral"
+
+
+def render_header(data_month: str, source: str, run_id: str, active_section: str) -> None:
+    st.markdown(
+        f"""
+        <div class="dashboard-header">
+            <div class="eyebrow">Macro Regime Research Dashboard</div>
+            <h1>Macro Scenario Dashboard</h1>
+            <div class="dashboard-subtitle">
+                Scenario-conditioned asset tilts, factor attribution, and validation diagnostics using completed monthly public market data.
+            </div>
+            <div class="dashboard-meta">
+                <span>Data through {esc(data_month)}</span>
+                <span>Source: {esc(source)}</span>
+                <span>Run {esc(run_id)}</span>
+                <span>Section: {esc(active_section)}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_grid(items: list[dict[str, object]]) -> None:
+    cards = []
+    for item in items:
+        label = esc(item.get("label", ""))
+        value = esc(item.get("value", ""))
+        detail = esc(item.get("detail", ""))
+        tone = esc(item.get("tone", "neutral"))
+        detail_html = f'<div class="status-detail">{detail}</div>' if detail else ""
+        cards.append(
+            f'<div class="status-chip tone-{tone}"><div class="status-label">{label}</div><div class="status-value">{value}</div>{detail_html}</div>'
+        )
+    st.markdown(f'<div class="status-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def render_kpi_grid(items: list[dict[str, object]]) -> None:
+    cards = []
+    for item in items:
+        label = esc(item.get("label", ""))
+        value = esc(item.get("value", ""))
+        subvalue = esc(item.get("subvalue", ""))
+        tone = esc(item.get("tone", "neutral"))
+        sub_html = f'<div class="kpi-subvalue">{subvalue}</div>' if subvalue else ""
+        cards.append(
+            f'<div class="kpi-card tone-{tone}"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div>{sub_html}</div>'
+        )
+    st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def render_note(text: str) -> None:
+    st.markdown(f'<div class="callout-note">{esc(text)}</div>', unsafe_allow_html=True)
 
 
 def last_completed_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
@@ -279,12 +489,14 @@ def polish_figure(fig: go.Figure, height: int | None = None) -> go.Figure:
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "#e5e7eb", "size": 13},
-        margin={"l": 12, "r": 12, "t": 24, "b": 24},
-        legend={"orientation": "v", "bgcolor": "rgba(0,0,0,0)"},
+        font={"color": "#f4efe7", "size": 12, "family": "Inter, system-ui, sans-serif"},
+        margin={"l": 8, "r": 8, "t": 20, "b": 22},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "left", "x": 0, "bgcolor": "rgba(0,0,0,0)"},
+        colorway=[COLORS["positive"], COLORS["accent"], COLORS["secondary"], COLORS["negative"], COLORS["neutral"]],
+        hoverlabel={"bgcolor": "#1f1c18", "bordercolor": "rgba(220,210,190,0.24)", "font_size": 12},
     )
-    fig.update_xaxes(gridcolor=COLORS["grid"], zerolinecolor="rgba(229,231,235,0.55)")
-    fig.update_yaxes(gridcolor=COLORS["grid"], zerolinecolor="rgba(229,231,235,0.55)")
+    fig.update_xaxes(gridcolor=COLORS["grid"], zerolinecolor="rgba(244,239,231,0.34)", linecolor="rgba(220,210,190,0.20)")
+    fig.update_yaxes(gridcolor=COLORS["grid"], zerolinecolor="rgba(244,239,231,0.34)", linecolor="rgba(220,210,190,0.20)")
     if height is not None:
         fig.update_layout(height=height)
     return fig
@@ -837,17 +1049,6 @@ except FileNotFoundError:
     st.error("Missing data files. Run `python sample_data.py` first, then restart the app.")
     st.stop()
 
-if refresh_info["ok"]:
-    st.caption(
-        f"Read-only data snapshot current through {refresh_info.get('prices_last_date') or refresh_info.get('last_complete_month')} "
-        f"from {refresh_info.get('source')}."
-    )
-else:
-    st.error(
-        "Read-only data snapshot is stale or missing its source audit. "
-        "Run the scheduled/manual GitHub data workflow before using model output."
-    )
-
 scenario_names = list(scenarios["scenario"])
 state = load_update_state()
 expected_month = pd.to_datetime(state.get("last_complete_month") or refresh_info.get("last_complete_month"), errors="coerce")
@@ -881,10 +1082,10 @@ with st.sidebar:
     preset = st.selectbox("Preset", scenario_names, index=scenario_names.index("Summer") if "Summer" in scenario_names else 0)
     preset_row = scenarios.set_index("scenario").loc[preset, FACTOR_COLUMNS].astype(float)
 
-    st.write("Adjust macro factor shocks. Values are standardized units by default.")
+    st.caption("Adjust standardized macro shocks.")
     scenario_values = {}
     for c in FACTOR_COLUMNS:
-        scenario_values[c] = st.slider(c, min_value=-3.0, max_value=3.0, value=float(preset_row[c]), step=0.1)
+        scenario_values[c] = st.slider(label_text(c), min_value=-3.0, max_value=3.0, value=float(preset_row[c]), step=0.1)
     scenario = pd.Series(scenario_values)
 
     st.header("Model")
@@ -896,6 +1097,17 @@ with st.sidebar:
     min_investability_score = st.slider("Minimum investability score", min_value=0, max_value=100, value=60, step=5)
     st.header("View")
     active_view = st.radio("Section", VIEW_NAMES, index=0, key="active_view")
+
+run_id = dashboard_run_id()
+data_month_display = expected_month.strftime("%Y-%m-%d") if pd.notna(expected_month) else "n/a"
+snapshot_source = state.get("source", refresh_info.get("source", "unknown"))
+render_header(data_month_display, snapshot_source, run_id, active_view)
+
+if not refresh_info["ok"]:
+    st.error(
+        "Read-only data snapshot is stale or missing its source audit. "
+        "Run the scheduled/manual GitHub data workflow before using model output."
+    )
 
 if not source_audit_is_current:
     st.stop()
@@ -1054,6 +1266,7 @@ data_status = status_label(
     amber_reason=True,
 )
 data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
+data_status_detail = f"Proxy/vintage limits | Through {data_month_display}" if data_status == "Amber" else f"Through {data_month_display}"
 rank_ic_t_display = (
     f"{market_validation_status['rank_ic_t']:.2f}"
     if np.isfinite(market_validation_status["rank_ic_t"])
@@ -1069,32 +1282,48 @@ hit_display = (
     if np.isfinite(market_validation_status["positive_spread_pct"])
     else "n/a"
 )
-st.warning(
-    "Mode: Research only | "
-    f"Data through: {expected_month.strftime('%Y-%m-%d') if pd.notna(expected_month) else 'n/a'} | "
-    f"Run ID: {dashboard_run_id()} | "
-    f"Date-boundary check: {date_boundary_status} | "
-    f"Vintage status: Not available; latest-revised proxies, not ALFRED vintages | "
-    f"Transaction costs: {backtest_cost_bps} bps | "
-    f"Cache age: {cache_age_hours:.1f}h | "
-    f"Data status: {data_status_display} | "
-    f"Regime confidence: {confidence_label(auto_regime.confidence)} | "
-    f"Market validation: {market_validation_status['label']} "
-    f"(IC t {rank_ic_t_display}, spread {spread_display}, hit {hit_display}) | "
-    f"Optimizer validation: {optimizer_validation_status['label']}"
+cache_age_display = f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a"
+ranking_kpi_value = "Pending" if str(market_validation_status["label"]).startswith("Open") else str(market_validation_status["label"])
+ranking_kpi_detail = "Open Diagnostics" if ranking_kpi_value == "Pending" else "Validation status"
+optimizer_kpi_value = "Pending" if str(optimizer_validation_status["label"]).startswith("Open") else str(optimizer_validation_status["label"])
+optimizer_kpi_detail = "Open Portfolio" if optimizer_kpi_value == "Pending" else "Validation status"
+render_status_grid(
+    [
+        {"label": "Mode", "value": "Research only", "detail": "No execution signal", "tone": "warn"},
+        {"label": "Data", "value": data_status, "detail": data_status_detail, "tone": tone_for_status(data_status)},
+        {"label": "Vintage", "value": "Latest revised", "detail": "No ALFRED vintages", "tone": "warn"},
+        {"label": "Date audit", "value": date_boundary_status, "detail": f"Run {run_id}", "tone": tone_for_status(date_boundary_status)},
+        {"label": "Cost", "value": f"{backtest_cost_bps} bps", "detail": f"Cache age {cache_age_display}", "tone": "neutral"},
+        {
+            "label": "Market gate",
+            "value": market_validation_status["label"],
+            "detail": f"IC {rank_ic_t_display} | Spread {spread_display} | Hit {hit_display}",
+            "tone": tone_for_status(market_validation_status["label"]),
+        },
+    ]
 )
-c1, c2, c3, c4, c5, c6 = st.columns(6)
-c1.metric("Assets modeled", f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}")
-c2.metric("Auto modal scenario", str(modal_row["scenario"]))
-c3.metric("Unknown / mixed", f"{unknown_probability * 100:.1f}%")
-c4.metric("Regime confidence", f"{auto_regime.confidence * 100:.1f}%")
-c5.metric("Ranking validation", str(market_validation_status["label"]))
-c6.metric("Optimizer validation", str(optimizer_validation_status["label"]))
-
-st.info(scenario_summary_line(scenario))
-st.caption(
-    f"Selected manual scenario: {preset}. Auto-regime metrics and probability rankings are model-implied, computed from the latest data, "
-    "and do not use the manual sidebar preset."
+render_kpi_grid(
+    [
+        {
+            "label": "Assets modeled",
+            "value": f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}",
+            "subvalue": "After investability gate" if apply_investability_gate else "Research override",
+            "tone": "info",
+        },
+        {"label": "Auto modal scenario", "value": str(modal_row["scenario"]), "subvalue": "Model-implied", "tone": "warn"},
+        {"label": "Unknown / mixed", "value": f"{unknown_probability * 100:.1f}%", "subvalue": "Probability mass", "tone": "neutral"},
+        {
+            "label": "Regime confidence",
+            "value": f"{auto_regime.confidence * 100:.1f}%",
+            "subvalue": confidence_label(auto_regime.confidence),
+            "tone": tone_for_status(confidence_label(auto_regime.confidence)),
+        },
+        {"label": "Ranking gate", "value": ranking_kpi_value, "subvalue": ranking_kpi_detail, "tone": tone_for_status(market_validation_status["label"])},
+        {"label": "Optimizer gate", "value": optimizer_kpi_value, "subvalue": optimizer_kpi_detail, "tone": tone_for_status(optimizer_validation_status["label"])},
+    ]
+)
+render_note(
+    f"{scenario_summary_line(scenario)} Selected manual scenario: {preset}. Auto-regime metrics are model-implied and do not use the manual sidebar preset."
 )
 
 if active_view == "Auto Regime":
@@ -2447,7 +2676,7 @@ if active_view == "Diagnostics":
         a1.metric("Audit rows", f"{len(audit):,}")
         a2.metric("Lookahead flags", f"{lookahead_count}")
         a3.metric("Date-boundary", "Pass" if lookahead_count == 0 else "Fail")
-        a4.metric("Run ID", dashboard_run_id())
+        a4.metric("Run ID", run_id)
         a5.metric("Cache age", f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a")
         st.markdown("**Acceptance rule:** no backtest result should render as production-grade unless `lookahead_flag_count == 0`; vintage-data limitations remain separate and disclosed.")
         st.dataframe(
