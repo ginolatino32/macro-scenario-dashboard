@@ -139,23 +139,83 @@ st.markdown(
         color: var(--muted-2);
         font-size: 0.78rem;
     }
-    .status-grid,
-    .kpi-grid {
+    .regime-summary {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+        grid-template-columns: minmax(210px, 1.45fr) repeat(3, minmax(104px, 0.65fr));
+        gap: 0.65rem;
+        margin: 0.9rem 0 0.8rem;
+        align-items: stretch;
+    }
+    .regime-primary,
+    .regime-stat,
+    .validation-strip {
+        background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
+        border: 1px solid var(--line);
+        border-radius: 8px;
+    }
+    .regime-primary {
+        padding: 1rem 1.05rem;
+        border-color: rgba(242, 193, 78, 0.35);
+    }
+    .regime-kicker,
+    .regime-stat-label {
+        color: var(--muted-2);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0;
+    }
+    .regime-title {
+        color: var(--amber);
+        font-size: clamp(1.8rem, 5vw, 2.55rem);
+        font-weight: 780;
+        line-height: 1.02;
+        margin-top: 0.2rem;
+    }
+    .regime-caption {
+        color: var(--muted);
+        font-size: 0.82rem;
+        margin-top: 0.4rem;
+    }
+    .regime-stat {
+        padding: 0.9rem 0.85rem;
+    }
+    .regime-stat-value {
+        color: var(--text);
+        font-size: clamp(1.35rem, 3vw, 1.8rem);
+        font-weight: 760;
+        line-height: 1.05;
+        margin-top: 0.22rem;
+    }
+    .regime-stat-detail {
+        color: var(--muted);
+        font-size: 0.76rem;
+        margin-top: 0.34rem;
+        line-height: 1.25;
+    }
+    .validation-strip {
+        padding: 0.72rem 0.85rem;
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.4;
+        margin: 0.3rem 0 0.95rem;
+        border-left: 3px solid var(--blue);
+    }
+    .validation-strip strong {color: var(--text);}
+    .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
         gap: 0.65rem;
         margin: 1rem 0;
     }
     .status-chip,
-    .kpi-card,
     .callout-note {
         background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
         border: 1px solid var(--line);
         border-radius: 8px;
     }
     .status-chip {padding: 0.65rem 0.72rem; min-height: 72px;}
-    .status-label,
-    .kpi-label {
+    .status-label {
         color: var(--muted-2);
         font-size: 0.68rem;
         font-weight: 700;
@@ -176,25 +236,13 @@ st.markdown(
         line-height: 1.25;
     }
     .tone-good {border-color: rgba(45, 212, 191, 0.35);}
-    .tone-good .status-value, .tone-good .kpi-value {color: var(--teal);}
+    .tone-good .status-value {color: var(--teal);}
     .tone-warn {border-color: rgba(242, 193, 78, 0.38);}
-    .tone-warn .status-value, .tone-warn .kpi-value {color: var(--amber);}
+    .tone-warn .status-value {color: var(--amber);}
     .tone-bad {border-color: rgba(255, 107, 74, 0.40);}
-    .tone-bad .status-value, .tone-bad .kpi-value {color: var(--coral);}
+    .tone-bad .status-value {color: var(--coral);}
     .tone-info {border-color: rgba(138, 180, 248, 0.34);}
-    .tone-info .status-value, .tone-info .kpi-value {color: var(--blue);}
-    .kpi-card {padding: 0.85rem 0.9rem; min-height: 98px;}
-    .kpi-value {
-        color: var(--text);
-        font-size: clamp(1.5rem, 4vw, 2.15rem);
-        font-weight: 750;
-        line-height: 1.05;
-    }
-    .kpi-subvalue {
-        color: var(--muted);
-        font-size: 0.78rem;
-        margin-top: 0.35rem;
-    }
+    .tone-info .status-value {color: var(--blue);}
     .callout-note {
         border-left: 3px solid var(--amber);
         padding: 0.8rem 0.9rem;
@@ -217,6 +265,8 @@ st.markdown(
     @media (max-width: 720px) {
         .block-container {padding: 1rem 1rem 2rem;}
         h1 {font-size: 2.05rem;}
+        .regime-summary {grid-template-columns: 1fr 1fr;}
+        .regime-primary {grid-column: 1 / -1;}
     }
     </style>
     """,
@@ -266,6 +316,46 @@ def render_header(data_month: str, source: str, run_id: str, active_section: str
     )
 
 
+def render_regime_summary(
+    modal_scenario: str,
+    modal_probability_pct: float,
+    confidence_pct: float,
+    confidence_label_text: str,
+    unknown_pct: float,
+    assets_modeled: str,
+) -> None:
+    st.markdown(
+        f"""
+        <div class="regime-summary">
+            <div class="regime-primary">
+                <div class="regime-kicker">Current Model Regime</div>
+                <div class="regime-title">{esc(modal_scenario)}</div>
+                <div class="regime-caption">Highest model-implied macro scenario probability for the latest completed monthly data.</div>
+            </div>
+            <div class="regime-stat">
+                <div class="regime-stat-label">Modal Probability</div>
+                <div class="regime-stat-value">{modal_probability_pct:.1f}%</div>
+                <div class="regime-stat-detail">Scenario weight</div>
+            </div>
+            <div class="regime-stat">
+                <div class="regime-stat-label">Confidence</div>
+                <div class="regime-stat-value">{confidence_pct:.1f}%</div>
+                <div class="regime-stat-detail">{esc(confidence_label_text)}</div>
+            </div>
+            <div class="regime-stat">
+                <div class="regime-stat-label">Unknown / Mixed</div>
+                <div class="regime-stat-value">{unknown_pct:.1f}%</div>
+                <div class="regime-stat-detail">Residual probability</div>
+            </div>
+        </div>
+        <div class="validation-strip">
+            <strong>{esc(assets_modeled)}</strong> assets are modeled after the investability gate. Ranking and optimizer gates remain research-only until their views are opened and validated.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_status_grid(items: list[dict[str, object]]) -> None:
     cards = []
     for item in items:
@@ -278,20 +368,6 @@ def render_status_grid(items: list[dict[str, object]]) -> None:
             f'<div class="status-chip tone-{tone}"><div class="status-label">{label}</div><div class="status-value">{value}</div>{detail_html}</div>'
         )
     st.markdown(f'<div class="status-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
-
-
-def render_kpi_grid(items: list[dict[str, object]]) -> None:
-    cards = []
-    for item in items:
-        label = esc(item.get("label", ""))
-        value = esc(item.get("value", ""))
-        subvalue = esc(item.get("subvalue", ""))
-        tone = esc(item.get("tone", "neutral"))
-        sub_html = f'<div class="kpi-subvalue">{subvalue}</div>' if subvalue else ""
-        cards.append(
-            f'<div class="kpi-card tone-{tone}"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div>{sub_html}</div>'
-        )
-    st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
 def render_note(text: str) -> None:
@@ -1267,59 +1343,28 @@ data_status = status_label(
 )
 data_status_display = f"{data_status} (proxy/vintage limits)" if data_status == "Amber" else data_status
 data_status_detail = f"Proxy/vintage limits | Through {data_month_display}" if data_status == "Amber" else f"Through {data_month_display}"
-rank_ic_t_display = (
-    f"{market_validation_status['rank_ic_t']:.2f}"
-    if np.isfinite(market_validation_status["rank_ic_t"])
-    else "n/a"
-)
-spread_display = (
-    f"{market_validation_status['spread_mean']:.2f}%"
-    if np.isfinite(market_validation_status["spread_mean"])
-    else "n/a"
-)
-hit_display = (
-    f"{market_validation_status['positive_spread_pct']:.1f}%"
-    if np.isfinite(market_validation_status["positive_spread_pct"])
-    else "n/a"
-)
-cache_age_display = f"{cache_age_hours:.1f}h" if np.isfinite(cache_age_hours) else "n/a"
 ranking_kpi_value = "Pending" if str(market_validation_status["label"]).startswith("Open") else str(market_validation_status["label"])
-ranking_kpi_detail = "Open Diagnostics" if ranking_kpi_value == "Pending" else "Validation status"
 optimizer_kpi_value = "Pending" if str(optimizer_validation_status["label"]).startswith("Open") else str(optimizer_validation_status["label"])
-optimizer_kpi_detail = "Open Portfolio" if optimizer_kpi_value == "Pending" else "Validation status"
+assets_modeled_display = f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}"
+render_regime_summary(
+    str(modal_row["scenario"]),
+    float(modal_row["probability"]) * 100.0,
+    auto_regime.confidence * 100.0,
+    confidence_label(auto_regime.confidence),
+    unknown_probability * 100.0,
+    assets_modeled_display,
+)
 render_status_grid(
     [
         {"label": "Mode", "value": "Research only", "detail": "No execution signal", "tone": "warn"},
         {"label": "Data", "value": data_status, "detail": data_status_detail, "tone": tone_for_status(data_status)},
         {"label": "Vintage", "value": "Latest revised", "detail": "No ALFRED vintages", "tone": "warn"},
-        {"label": "Date audit", "value": date_boundary_status, "detail": f"Run {run_id}", "tone": tone_for_status(date_boundary_status)},
-        {"label": "Cost", "value": f"{backtest_cost_bps} bps", "detail": f"Cache age {cache_age_display}", "tone": "neutral"},
         {
-            "label": "Market gate",
-            "value": market_validation_status["label"],
-            "detail": f"IC {rank_ic_t_display} | Spread {spread_display} | Hit {hit_display}",
-            "tone": tone_for_status(market_validation_status["label"]),
-        },
-    ]
-)
-render_kpi_grid(
-    [
-        {
-            "label": "Assets modeled",
-            "value": f"{len(result.expected):,}/{len(universe):,}" if apply_investability_gate else f"{len(result.expected):,}",
-            "subvalue": "After investability gate" if apply_investability_gate else "Research override",
+            "label": "Validation",
+            "value": f"{ranking_kpi_value} / {optimizer_kpi_value}",
+            "detail": f"{backtest_cost_bps} bps | audit: {date_boundary_status}",
             "tone": "info",
         },
-        {"label": "Auto modal scenario", "value": str(modal_row["scenario"]), "subvalue": "Model-implied", "tone": "warn"},
-        {"label": "Unknown / mixed", "value": f"{unknown_probability * 100:.1f}%", "subvalue": "Probability mass", "tone": "neutral"},
-        {
-            "label": "Regime confidence",
-            "value": f"{auto_regime.confidence * 100:.1f}%",
-            "subvalue": confidence_label(auto_regime.confidence),
-            "tone": tone_for_status(confidence_label(auto_regime.confidence)),
-        },
-        {"label": "Ranking gate", "value": ranking_kpi_value, "subvalue": ranking_kpi_detail, "tone": tone_for_status(market_validation_status["label"])},
-        {"label": "Optimizer gate", "value": optimizer_kpi_value, "subvalue": optimizer_kpi_detail, "tone": tone_for_status(optimizer_validation_status["label"])},
     ]
 )
 render_note(
