@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import model as model_module
+from bl_views import generate_bl_inputs
 from model import (
     FACTOR_COLUMNS,
     build_model,
@@ -41,6 +42,7 @@ MARKET_VALIDATION_CACHE_VERSION = "market_outcome_validation_v2_score_rules"
 OPTIMIZER_VALIDATION_CACHE_VERSION = "optimizer_validation_v2_placebo"
 VIEW_NAMES = [
     "Auto Regime",
+    "CIO Views",
     "Investment Brief",
     "Probability Rankings",
     "Portfolio",
@@ -341,6 +343,54 @@ st.markdown(
         grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
         gap: 0.72rem;
         margin: 0.9rem 0 1.05rem;
+    }
+    .cio-view-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.72rem;
+        margin: 0.9rem 0 1.05rem;
+    }
+    .cio-view-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
+        border: 1px solid rgba(45, 212, 191, 0.26);
+        border-top: 3px solid var(--teal);
+        border-radius: 8px;
+        padding: 0.84rem 0.9rem;
+        min-width: 0;
+    }
+    .cio-view-title {
+        color: var(--text);
+        font-size: 0.98rem;
+        font-weight: 720;
+        line-height: 1.25;
+        min-height: 2.4rem;
+        overflow-wrap: anywhere;
+    }
+    .cio-view-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.72rem;
+    }
+    .cio-view-stat span {
+        display: block;
+        color: var(--muted-2);
+        font-size: 0.62rem;
+        font-weight: 720;
+        text-transform: uppercase;
+        margin-bottom: 0.15rem;
+    }
+    .cio-view-stat strong {
+        color: var(--text);
+        font-size: 0.9rem;
+        font-weight: 740;
+        font-variant-numeric: tabular-nums;
+    }
+    .cio-view-rationale {
+        color: var(--muted);
+        font-size: 0.76rem;
+        line-height: 1.32;
+        margin-top: 0.68rem;
     }
     .mini-card,
     .position-card,
@@ -833,6 +883,30 @@ def render_leader_list(
     st.markdown(f'<div class="leader-list">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
+def render_cio_view_cards(views: pd.DataFrame, limit: int = 6) -> None:
+    candidates = views[views["status"].eq("Candidate")].copy() if not views.empty else pd.DataFrame()
+    if candidates.empty:
+        st.warning("No candidate BL views passed the current contract. Open the blocked table to see why.")
+        return
+    candidates = candidates.sort_values(["confidence_score", "q_expected_return"], ascending=[False, False]).head(limit)
+    cards = []
+    for _, row in candidates.iterrows():
+        q_pct = float(row.get("q_expected_return", np.nan)) * 100.0
+        confidence_pct = float(row.get("confidence_score", np.nan)) * 100.0
+        omega = float(row.get("omega", np.nan))
+        title = row.get("rationale_short", row.get("assets", "View"))
+        cards.append(
+            f'<div class="cio-view-card"><div class="mini-label">{esc(row.get("view_type", "view"))}</div>'
+            f'<div class="cio-view-title">{esc(title)}</div>'
+            f'<div class="cio-view-stats">'
+            f'<div class="cio-view-stat"><span>q</span><strong>{signed_pct(q_pct)}</strong></div>'
+            f'<div class="cio-view-stat"><span>Conf</span><strong>{plain_pct(confidence_pct)}</strong></div>'
+            f'<div class="cio-view-stat"><span>Omega</span><strong>{omega:.4f}</strong></div>'
+            f'</div><div class="cio-view-rationale">{esc(row.get("risks", ""))}</div></div>'
+        )
+    st.markdown(f'<div class="cio-view-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
 def last_completed_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
     if now is None:
         now = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
@@ -1009,6 +1083,78 @@ def build_optimizer_validation(
         transaction_cost_bps=transaction_cost_bps,
         max_periods=12,
     )
+
+
+@st.cache_data(show_spinner=False)
+def load_bl_dashboard_bundle(refresh_token: str):
+    exports = ROOT / "exports"
+    required = {
+        "predictions": DATA / "model_predictions.csv",
+        "views": DATA / "bl_macro_views.csv",
+        "runs": DATA / "bl_runs.csv",
+        "posterior": DATA / "bl_posterior_returns.csv",
+        "asset_order": exports / "bl_asset_order.csv",
+        "P": exports / "P_matrix.csv",
+        "q": exports / "q_vector.csv",
+        "Omega": exports / "Omega_matrix.csv",
+    }
+    if all(path.exists() for path in required.values()):
+        predictions = pd.read_csv(required["predictions"])
+        views = pd.read_csv(required["views"])
+        runs = pd.read_csv(required["runs"])
+        posterior = pd.read_csv(required["posterior"])
+        asset_order = pd.read_csv(required["asset_order"])["ticker"].astype(str).tolist()
+        P = pd.read_csv(required["P"], index_col="view_id")
+        q = pd.read_csv(required["q"])
+        Omega = pd.read_csv(required["Omega"], index_col="view_id")
+        as_of = pd.to_datetime(runs["as_of"].iloc[-1]) if not runs.empty and "as_of" in runs else pd.NaT
+        scenario_context = {}
+        if not views.empty and "scenario_context_json" in views:
+            try:
+                scenario_context = json.loads(str(views["scenario_context_json"].dropna().iloc[0]))
+            except (IndexError, json.JSONDecodeError):
+                scenario_context = {}
+        return {
+            "source": "precomputed",
+            "as_of": as_of,
+            "horizon_months": int(runs["horizon_months"].iloc[-1]) if not runs.empty and "horizon_months" in runs else 6,
+            "asset_order": asset_order,
+            "config_audit": pd.DataFrame([{"check": "precomputed_exports", "status": "Pass", "detail": "Loaded committed BL artifacts."}]),
+            "predictions": predictions,
+            "views": views,
+            "P": P,
+            "q": q,
+            "Omega": Omega,
+            "runs": runs,
+            "posterior": posterior,
+            "scenario_context": scenario_context,
+        }
+
+    prices_local, factors_local, universe_local, scenarios_local = load_inputs(refresh_token)
+    source_local = load_source_audit()
+    result = generate_bl_inputs(
+        prices_local,
+        factors_local,
+        universe_local,
+        scenarios_local,
+        CONFIG,
+        source_audit=source_local,
+    )
+    return {
+        "source": "computed",
+        "as_of": result.as_of,
+        "horizon_months": result.horizon_months,
+        "asset_order": result.asset_order,
+        "config_audit": result.config_audit,
+        "predictions": result.predictions,
+        "views": result.views,
+        "P": result.P,
+        "q": result.q,
+        "Omega": result.Omega,
+        "runs": result.bl_runs,
+        "posterior": result.posterior_returns,
+        "scenario_context": result.scenario_context,
+    }
 
 
 def format_pct_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -1829,6 +1975,137 @@ render_status_grid(
 render_note(
     f"{scenario_summary_line(scenario)} Selected manual scenario: {preset}. Auto-regime metrics are model-implied and do not use the manual sidebar preset."
 )
+
+if active_view == "CIO Views":
+    st.subheader("Automatic macro views for Black-Litterman")
+    st.caption(
+        "Decision objects only: each Candidate view has a formal P vector, q, Omega, confidence score, expiry, rationale, and posterior impact."
+    )
+    with st.spinner("Loading BL view contract and posterior impact..."):
+        bl_bundle = load_bl_dashboard_bundle(refresh_info.get("updated_at_utc", "no-refresh-token"))
+
+    bl_views = bl_bundle["views"].copy()
+    bl_posterior = bl_bundle["posterior"].copy()
+    bl_runs = bl_bundle["runs"].copy()
+    bl_P = bl_bundle["P"].copy()
+    bl_q = bl_bundle["q"].copy()
+    bl_Omega = bl_bundle["Omega"].copy()
+    bl_as_of = pd.to_datetime(bl_bundle.get("as_of"), errors="coerce")
+    config_audit = bl_bundle["config_audit"].copy()
+    candidate_count = int(bl_views["status"].eq("Candidate").sum()) if not bl_views.empty and "status" in bl_views else 0
+    needs_review_count = int(bl_views["status"].eq("Needs Review").sum()) if not bl_views.empty and "status" in bl_views else 0
+    blocked_count = int(bl_views["status"].eq("Blocked").sum()) if not bl_views.empty and "status" in bl_views else 0
+    config_failures = int(config_audit["status"].eq("Fail").sum()) if not config_audit.empty and "status" in config_audit else 0
+    stale_bl = pd.notna(expected_month) and pd.notna(bl_as_of) and pd.Timestamp(bl_as_of).date() != pd.Timestamp(expected_month).date()
+    bl_status = "Ready" if candidate_count > 0 and config_failures == 0 and not stale_bl else ("Stale" if stale_bl else "Review")
+    render_status_grid(
+        [
+            {"label": "BL status", "value": bl_status, "detail": f"{candidate_count} exported views", "tone": "good" if bl_status == "Ready" else "warn"},
+            {"label": "As of", "value": bl_as_of.strftime("%b %Y") if pd.notna(bl_as_of) else "n/a", "detail": f"{bl_bundle['source']} artifacts", "tone": "info"},
+            {"label": "Matrix", "value": f"{len(bl_P)} x {len(bl_bundle['asset_order'])}", "detail": "P rows x asset columns", "tone": "info"},
+            {"label": "Review queue", "value": f"{needs_review_count} / {blocked_count}", "detail": "Needs Review / Blocked", "tone": "warn" if needs_review_count or blocked_count else "good"},
+            {"label": "Horizon", "value": f"{int(bl_bundle['horizon_months'])}m", "detail": "Horizon-scaled units", "tone": "info"},
+        ]
+    )
+    if stale_bl:
+        st.warning(
+            f"BL artifacts are dated {bl_as_of.date()} while the dashboard data month is {expected_month.date()}. "
+            "Run the BL output generator after refreshing data."
+        )
+    if config_failures:
+        st.error("BL configuration has failing checks. Candidate exports should not be used until these are fixed.")
+    else:
+        st.success("BL contract checks passed for the displayed artifact set.")
+
+    render_cio_view_cards(bl_views, limit=6)
+
+    if not bl_posterior.empty:
+        st.subheader("Posterior impact")
+        impact = bl_posterior.copy()
+        impact["posterior_minus_prior_pct"] = pd.to_numeric(impact["posterior_minus_prior"], errors="coerce") * 100.0
+        impact = impact.reindex(columns=["ticker", "asset_name", "sleeve", "posterior_minus_prior_pct", "prior_return", "posterior_return", "benchmark_weight", "suggested_active_weight"])
+        impact = impact.sort_values("posterior_minus_prior_pct", key=lambda s: s.abs(), ascending=False).head(16)
+        fig = px.bar(
+            impact.sort_values("posterior_minus_prior_pct"),
+            x="posterior_minus_prior_pct",
+            y="asset_name",
+            color="posterior_minus_prior_pct",
+            color_continuous_scale=[COLORS["negative"], COLORS["neutral"], COLORS["positive"]],
+            labels={"posterior_minus_prior_pct": "Posterior minus prior, %", "asset_name": ""},
+            hover_data=["ticker", "sleeve", "benchmark_weight", "suggested_active_weight"],
+        )
+        fig.add_vline(x=0, line_width=1, line_dash="dash", line_color=COLORS["unknown"])
+        polish_figure(fig, height=480)
+        st.plotly_chart(fig, width="stretch")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.download_button("Views CSV", bl_views.to_csv(index=False), "bl_macro_views.csv", "text/csv", use_container_width=True)
+    c2.download_button("P matrix", bl_P.to_csv(index=True, index_label="view_id"), "P_matrix.csv", "text/csv", use_container_width=True)
+    c3.download_button("q vector", bl_q.to_csv(index=False), "q_vector.csv", "text/csv", use_container_width=True)
+    c4.download_button("Omega", bl_Omega.to_csv(index=True, index_label="view_id"), "Omega_matrix.csv", "text/csv", use_container_width=True)
+
+    with st.expander("Formal Candidate view table", expanded=False):
+        formal_cols = [
+            "view_id",
+            "view_type",
+            "assets",
+            "horizon_months",
+            "p_vector_json",
+            "q_expected_return",
+            "q_return_basis",
+            "confidence_score",
+            "omega",
+            "expiry_date",
+            "rationale_short",
+            "risks",
+            "status",
+        ]
+        formal = bl_views[bl_views["status"].eq("Candidate")].copy()
+        formal["q_pct"] = pd.to_numeric(formal["q_expected_return"], errors="coerce") * 100.0
+        formal["confidence_pct"] = pd.to_numeric(formal["confidence_score"], errors="coerce") * 100.0
+        display_cols = [col for col in formal_cols if col in formal.columns]
+        st.dataframe(
+            format_pct_columns(formal[display_cols + ["q_pct", "confidence_pct"]], ["q_pct", "confidence_pct", "omega"]),
+            width="stretch",
+        )
+
+    with st.expander("Blocked and Needs Review views", expanded=False):
+        review = bl_views[~bl_views["status"].eq("Candidate")].copy()
+        if review.empty:
+            st.success("No blocked or review views in the current BL run.")
+        else:
+            review["q_pct"] = pd.to_numeric(review["q_expected_return"], errors="coerce") * 100.0
+            review["confidence_pct"] = pd.to_numeric(review["confidence_score"], errors="coerce") * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    review[["view_id", "view_type", "assets", "q_pct", "confidence_pct", "omega", "status", "block_reason"]],
+                    ["q_pct", "confidence_pct", "omega"],
+                ),
+                width="stretch",
+            )
+
+    with st.expander("BL run and contract audit", expanded=False):
+        left, right = st.columns([1, 1])
+        with left:
+            st.markdown("**BL run**")
+            st.dataframe(bl_runs, width="stretch")
+        with right:
+            st.markdown("**Contract checks**")
+            st.dataframe(config_audit, width="stretch")
+        st.markdown("**Asset order**")
+        st.dataframe(pd.DataFrame({"column_index": range(len(bl_bundle["asset_order"])), "ticker": bl_bundle["asset_order"]}), width="stretch")
+
+    with st.expander("Methodology", expanded=False):
+        st.markdown(
+            """
+            - `q` is a horizon return in decimal units, currently 6-month active or relative-spread return.
+            - `P` columns follow the exported asset order exactly.
+            - Active views use `+asset - benchmark basket`; relative views use `+long - short`.
+            - `Omega` is forecast error variance divided by confidence, with configured floors and caps.
+            - Confidence scales BL uncertainty. It is not a probability that the view is right.
+            - Macro features are lagged one month to reduce release-lag and revision-bias risk in public proxy data.
+            """
+        )
 
 if active_view == "Auto Regime":
     st.subheader("Automatic model-implied scenario weights")

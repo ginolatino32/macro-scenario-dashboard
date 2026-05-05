@@ -1,0 +1,30 @@
+setting,value,notes
+horizon_months,6,Primary CIO view horizon in completed monthly data
+secondary_horizon_months,12,Secondary horizon for later validation and lower-confidence monitoring
+policy_benchmark_id,GSMIF_SAMPLE_POLICY,Benchmark basket used for implied equilibrium returns
+return_basis,active_return_vs_benchmark,Primary q and pi basis for active views
+relative_return_basis,relative_spread_return,Return basis for approved pair views
+covariance_frequency,monthly,Raw covariance input frequency before horizon scaling
+covariance_lookback_months,60,Trailing months used for Sigma
+covariance_method,shrunk_sample,Sample covariance shrunk toward diagonal
+covariance_shrinkage,0.20,Shrinkage weight toward diagonal
+tau,0.05,Black-Litterman prior uncertainty scalar
+risk_aversion_delta,2.50,Used in pi = delta * Sigma * benchmark_weights
+confidence_floor,0.25,Lower bound on confidence used to scale Omega
+confidence_cap,0.75,Upper bound on confidence used to scale Omega
+min_candidate_confidence,0.45,Minimum confidence for matrix-export candidate views
+omega_floor,0.0001,Minimum view variance in horizon return units
+omega_cap,0.2500,Maximum view variance in horizon return units
+q_absolute_cap,0.1500,Cap for active or absolute q values over horizon
+q_relative_cap,0.1200,Cap for relative-spread q values over horizon
+min_active_q_threshold,0.0200,Minimum active-return magnitude for candidate active views
+min_train_observations,60,Minimum completed labels before model output is trusted
+walkforward_embargo_months,6,Training feature date must be at least horizon months before as_of
+unknown_mixed_reduce_threshold,0.40,Unknown/Mixed probability where confidence is reduced
+unknown_mixed_block_threshold,0.60,Unknown/Mixed probability where automatic views are blocked
+macro_feature_lag_months,1,Conservative lag for public macro proxies and revision risk
+max_model_features,5,Maximum selected macro features in the v1 OLS forecast
+validation_stride_months,3,Step size for walk-forward model validation to keep app runtime usable
+max_validation_points,72,Maximum validation predictions per asset
+max_views_per_run,10,Maximum Candidate views exported into P/q/Omega
+view_expiry_months,1,Automatic view expiry after the as_of month

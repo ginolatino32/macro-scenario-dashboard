@@ -1,0 +1,12 @@
+benchmark_id,as_of,ticker,weight,source,is_placeholder,notes
+GSMIF_SAMPLE_POLICY,2026-03-31,ACWI,0.45,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,AGG,0.25,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,GLD,0.10,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,DBC,0.05,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,HYG,0.05,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,BIL,0.05,sample,TRUE,Replace with GSMIF policy or current holdings
+GSMIF_SAMPLE_POLICY,2026-03-31,EFA,0.05,sample,TRUE,Replace with GSMIF policy or current holdings
+ACWI_BENCH,2026-03-31,ACWI,1.00,sample,TRUE,Global equity benchmark proxy
+AGG_BENCH,2026-03-31,AGG,1.00,sample,TRUE,Core bond benchmark proxy
+DBC_BENCH,2026-03-31,DBC,1.00,sample,TRUE,Broad commodity benchmark proxy
+SPY_BENCH,2026-03-31,SPY,1.00,sample,TRUE,US equity benchmark proxy

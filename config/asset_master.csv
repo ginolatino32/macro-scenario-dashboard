@@ -1,0 +1,51 @@
+ticker,asset_name,asset_class,sleeve,sub_sleeve,currency,benchmark_id,is_investable,is_bl_eligible,is_macro_indicator_only,view_eligible_absolute,view_eligible_relative,min_weight,max_weight,allow_short,view_group,bl_group,covariance_group,return_source,return_type,min_history_months,max_missing_pct,stale_after_days,inception_date,notes
+ACWI,Global Equities,ETF,Asset Class,Global equity,USD,GSMIF_SAMPLE_POLICY,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.40,FALSE,Global policy,Core,Global multi asset,data/prices.csv,total_return_proxy,60,0.20,45,,Core benchmark component
+AGG,Aggregate Bonds,ETF,Asset Class,Core bonds,USD,GSMIF_SAMPLE_POLICY,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.40,FALSE,Global policy,Core,Global multi asset,data/prices.csv,total_return_proxy,60,0.20,45,,Core benchmark component
+DBC,Broad Commodities,ETF,Asset Class,Broad commodities,USD,GSMIF_SAMPLE_POLICY,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Global policy,Core,Global multi asset,data/prices.csv,total_return_proxy,60,0.25,45,,Commodity benchmark component
+HYG,High Yield Credit,ETF,Asset Class,High yield,USD,GSMIF_SAMPLE_POLICY,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Credit,Fixed Income,Global multi asset,data/prices.csv,total_return_proxy,60,0.20,45,,Credit risk sleeve
+BIL,Cash / T-Bills,ETF,Asset Class,Cash,USD,GSMIF_SAMPLE_POLICY,TRUE,TRUE,FALSE,FALSE,FALSE,0.00,0.30,FALSE,Cash,Core,Global multi asset,data/prices.csv,total_return_proxy,60,0.20,45,,Cash benchmark component no automatic view
+BTC,Bitcoin,Crypto,Crypto,Bitcoin,USD,,FALSE,FALSE,FALSE,FALSE,FALSE,0.00,0.00,FALSE,Crypto,Research,Research only,data/prices.csv,total_return_proxy,36,0.35,45,,Research only crypto excluded from BL
+ETH,Ethereum,Crypto,Crypto,Ethereum,USD,,FALSE,FALSE,FALSE,FALSE,FALSE,0.00,0.00,FALSE,Crypto,Research,Research only,data/prices.csv,total_return_proxy,36,0.35,45,,Research only crypto excluded from BL
+SPY,US Equities,ETF,Equity Region,US large cap,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.30,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,US equity regional view
+EEM,Emerging Markets,ETF,Equity Region,Emerging markets,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,EM regional view
+EFA,Developed ex-US,ETF,Equity Region,Developed ex US,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Developed ex US regional view
+EWJ,Japan,ETF,Equity Region,Japan,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Japan regional view
+EWU,UK,ETF,Equity Region,UK,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,UK regional view
+EWL,Switzerland,ETF,Equity Region,Switzerland,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Switzerland regional view
+EPP,Pacific ex-Japan,ETF,Equity Region,Pacific ex Japan,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,Equity regions,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Pacific regional view
+XLK,Technology,ETF,Equity Sector,Technology,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+SOXX,Semiconductors,ETF,Equity Sector,Semiconductors,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Industry view
+XLE,Energy,ETF,Equity Sector,Energy,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLB,Materials,ETF,Equity Sector,Materials,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLI,Industrials,ETF,Equity Sector,Industrials,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLY,Consumer Discretionary,ETF,Equity Sector,Consumer discretionary,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLP,Consumer Staples,ETF,Equity Sector,Consumer staples,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLV,Healthcare,ETF,Equity Sector,Healthcare,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+XLU,Utilities,ETF,Equity Sector,Utilities,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.20,45,,Sector view
+VNQ,REITs,ETF,Equity Sector,REITs,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Real estate view
+XHB,Homebuilders,ETF,Equity Sector,Homebuilders,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.12,FALSE,US sectors,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Housing sensitive view
+SHY,Front-End Treasuries,ETF,Fixed Income,Front end treasuries,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.25,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.20,45,,Rates view
+IEF,Treasury Belly,ETF,Fixed Income,Intermediate treasuries,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.25,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.20,45,,Rates view
+TLT,Long Treasuries,ETF,Fixed Income,Long treasuries,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.25,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.20,45,,Duration view
+TIP,TIPS,ETF,Fixed Income,TIPS,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.20,45,,Inflation-linked bond view
+LQD,Investment Grade Credit,ETF,Fixed Income,Investment grade,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.20,45,,Credit view
+EMB,EM Bonds,ETF,Fixed Income,Emerging market debt,USD,AGG_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Fixed income,Fixed Income,Fixed Income,data/prices.csv,total_return_proxy,60,0.25,45,,EM debt view
+UUP,US Dollar,ETF,FX,US dollar,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.20,45,,Macro indicator only
+FXA,Australian Dollar,ETF,FX,Australian dollar,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.25,45,,Macro indicator only
+FXC,Canadian Dollar,ETF,FX,Canadian dollar,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.25,45,,Macro indicator only
+FXF,Swiss Franc,ETF,FX,Swiss franc,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.25,45,,Macro indicator only
+FXY,Yen,ETF,FX,Yen,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.25,45,,Macro indicator only
+FXE,Euro,ETF,FX,Euro,USD,,TRUE,FALSE,TRUE,FALSE,FALSE,0.00,0.00,FALSE,FX,Indicator,Indicators,data/prices.csv,total_return_proxy,60,0.25,45,,Macro indicator only
+GLD,Gold,ETF,Commodity,Gold,USD,DBC_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.20,FALSE,Commodities,Commodity,Commodities,data/prices.csv,total_return_proxy,60,0.20,45,,Commodity view
+USO,Oil,ETF,Commodity,Oil,USD,DBC_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.10,FALSE,Commodities,Commodity,Commodities,data/prices.csv,total_return_proxy,60,0.35,45,,Oil proxy view
+CPER,Copper,ETF,Commodity,Copper,USD,DBC_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.10,FALSE,Commodities,Commodity,Commodities,data/prices.csv,total_return_proxy,60,0.35,45,,Copper proxy view
+CORN,Corn,ETF,Commodity,Corn,USD,DBC_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.06,FALSE,Commodities,Commodity,Commodities,data/prices.csv,total_return_proxy,60,0.45,45,,Agriculture proxy view
+WEAT,Wheat,ETF,Commodity,Wheat,USD,DBC_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.06,FALSE,Commodities,Commodity,Commodities,data/prices.csv,total_return_proxy,60,0.45,45,,Agriculture proxy view
+BAL,Cotton,ETF,Commodity,Cotton,USD,DBC_BENCH,TRUE,FALSE,FALSE,FALSE,FALSE,0.00,0.00,FALSE,Commodities,Research,Commodities,data/prices.csv,total_return_proxy,60,0.50,45,,Blocked by stale flatline source audit
+JO,Coffee,ETF,Commodity,Coffee,USD,DBC_BENCH,TRUE,FALSE,FALSE,FALSE,FALSE,0.00,0.00,FALSE,Commodities,Research,Commodities,data/prices.csv,total_return_proxy,60,0.50,45,,Blocked by stale flatline source audit
+IWM,Small Caps,ETF,Style Factor,Small cap,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.25,45,,Style view
+MTUM,Momentum,ETF,Style Factor,Momentum,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.35,45,,Style view
+QUAL,Quality,ETF,Style Factor,Quality,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.35,45,,Style view
+VLUE,Value,ETF,Style Factor,Value,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.35,45,,Style view
+USMV,Minimum Volatility,ETF,Style Factor,Minimum volatility,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.35,45,,Style view
+SPHB,High Beta,ETF,Style Factor,High beta,USD,ACWI_BENCH,TRUE,TRUE,FALSE,TRUE,TRUE,0.00,0.15,FALSE,Style,Equity,Equity,data/prices.csv,total_return_proxy,60,0.35,45,,Style view

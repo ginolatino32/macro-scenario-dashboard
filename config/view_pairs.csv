@@ -1,0 +1,11 @@
+view_pair_id,long_ticker,short_ticker,pair_type,sleeve,cross_sleeve_allowed,is_approved,min_q_threshold,min_confidence,max_q_abs,notes
+XLE_XLY_REL,XLE,XLY,relative,US sectors,FALSE,TRUE,0.025,0.55,0.100,Energy versus consumer discretionary macro sensitivity
+XLU_XLI_REL,XLU,XLI,relative,US sectors,FALSE,TRUE,0.020,0.55,0.100,Defensive utilities versus cyclic industrials proxy
+IEF_HYG_REL,IEF,HYG,relative,Fixed income,FALSE,TRUE,0.020,0.55,0.100,Treasury duration versus credit risk
+TLT_HYG_REL,TLT,HYG,relative,Fixed income,FALSE,TRUE,0.025,0.55,0.120,Long duration versus credit risk
+EFA_SPY_REL,EFA,SPY,relative,Equity regions,FALSE,TRUE,0.020,0.55,0.100,Developed ex US versus US equities
+EEM_SPY_REL,EEM,SPY,relative,Equity regions,FALSE,TRUE,0.025,0.55,0.120,Emerging markets versus US equities
+GLD_SPY_REL,GLD,SPY,relative,Cross asset,TRUE,TRUE,0.025,0.55,0.120,Gold versus US equities stress hedge
+DBC_SPY_REL,DBC,SPY,relative,Cross asset,TRUE,TRUE,0.025,0.55,0.120,Commodities versus US equities inflation sensitivity
+MTUM_VLUE_REL,MTUM,VLUE,relative,Style,FALSE,TRUE,0.020,0.55,0.100,Momentum versus value style spread
+USMV_SPHB_REL,USMV,SPHB,relative,Style,FALSE,TRUE,0.025,0.55,0.120,Low volatility versus high beta risk regime spread

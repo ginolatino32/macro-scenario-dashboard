@@ -12,6 +12,7 @@ This dashboard provides a macro scenario analysis workflow with:
 - automatic scenario probabilities, unknown/mixed regime detection, probability-weighted asset rankings, robustness, downside, regret, and fragility diagnostics
 - walk-forward optimizer validation versus SPY, 60/40, equal-weight, and risk-parity benchmarks, with ex-crypto and ex-commodities fragility checks
 - random-basket placebo distributions with percentile ranks and one-sided p-values for both the predicted-scenario basket and optimizer validation
+- automatic CIO macro view generation for Black-Litterman: `P`, `q`, `Omega`, view confidence, rationale, expiry, and posterior impact
 
 It will not reproduce any proprietary institutional output unless you have the same historical data, factor definitions, scenario presets, and weighting rules.
 The dashboard uses public monthly Yahoo/FRED proxy data. Treat the macro factors as transparent proxies and validate the proxy choices before using the outputs for capital allocation.
@@ -21,14 +22,29 @@ The dashboard uses public monthly Yahoo/FRED proxy data. Treat the macro factors
 ```text
 app.py                 Streamlit dashboard
 model.py               Core calculation engine
+bl_views.py            BL contract, forecast, view, matrix, and posterior engine
+generate_bl_outputs.py Regenerates committed BL output artifacts
 sample_data.py         Generates synthetic data so the app can run immediately
 requirements.txt       Python dependencies
 config/universe.csv    Asset universe, bucket, benchmark mapping
 config/scenarios.csv   Editable scenario presets
+config/asset_master.csv       BL eligibility, view flags, return basis, and risk controls
+config/benchmark_weights.csv  Policy/benchmark baskets used by active views and pi
+config/view_pairs.csv         Approved relative views only
+config/bl_settings.csv        BL horizon, unit, covariance, confidence, and Omega settings
 data/prices.csv        Public monthly market/ETF/crypto price history after refresh
 data/factors.csv       Public monthly macro proxy history after refresh
 data/source_audit.csv  Source freshness and stale/flatline exclusion audit
 data/update_state.json Public-data updater metadata
+data/model_predictions.csv     6m asset-level forecast audit table
+data/bl_macro_views.csv        Formal CIO view object table
+data/bl_runs.csv               BL run metadata and prior/posterior JSON
+data/bl_posterior_returns.csv  Per-asset prior, posterior, and suggested active impact
+exports/bl_asset_order.csv     P matrix column order
+exports/P_matrix.csv           Black-Litterman P matrix
+exports/q_vector.csv           Black-Litterman q vector
+exports/Omega_matrix.csv       Black-Litterman Omega matrix
+exports/bl_views.json          JSON handoff bundle
 ```
 
 ## Run
@@ -36,10 +52,11 @@ data/update_state.json Public-data updater metadata
 ```bash
 pip install -r requirements.txt
 python update_data.py --append-only
+python generate_bl_outputs.py
 streamlit run app.py
 ```
 
-The Streamlit app is read-only by default. It does not mutate production data on page load. Run the updater before launching locally, or use the GitHub Action in `.github/workflows/update-data.yml` to refresh the committed data snapshot for Streamlit Community Cloud.
+The Streamlit app is read-only by default. It does not mutate production data on page load. Run the updater and BL output generator before launching locally, or use the GitHub Action in `.github/workflows/update-data.yml` to refresh the committed data and BL artifact snapshots for Streamlit Community Cloud.
 
 Manual update commands:
 
@@ -47,6 +64,8 @@ Manual update commands:
 python update_data.py
 python update_data.py --force-full-refresh
 python update_data.py --append-only
+python generate_bl_outputs.py
+python -m pytest tests -q -o cache_dir=/tmp/macro-dashboard-pytest-cache
 ```
 
 Runtime refresh is disabled unless you explicitly enable local research mode:
@@ -58,7 +77,7 @@ MACRO_DASHBOARD_ALLOW_RUNTIME_REFRESH=1 streamlit run app.py
 ## Deploy on Streamlit Community Cloud
 
 1. Push this folder to a GitHub repository.
-2. Run the `Update dashboard data` GitHub Action once so `data/source_audit.csv`, `data/prices.csv`, `data/factors.csv`, and `data/update_state.json` are committed together.
+2. Run the `Update dashboard data` GitHub Action once so `data/source_audit.csv`, `data/prices.csv`, `data/factors.csv`, `data/update_state.json`, BL output tables, and matrix exports are committed together.
 3. In Streamlit Community Cloud, choose that repository and set the main file path to `app.py`.
 4. Keep `requirements.txt`, `config/`, and `data/` in the repository. The app reads the committed snapshot only; scheduled GitHub Actions refresh the data.
 5. Do not add private data, API keys, broker credentials, or paid data exports to this repository. If a future version needs secrets, put them in Streamlit secrets, not in the files.
@@ -118,6 +137,65 @@ expected_return = beta dot scenario_vector
 6. Rank by expected return and display top/bottom names with a simple t-stat confidence proxy.
 7. Convert expected return into conviction using residual volatility, model fit, and observation count.
 8. Build bucket tilts and a diversified long/short playbook from the highest-conviction positive and negative names.
+
+## CIO Automatic Macro Views / Black-Litterman Layer
+
+The `CIO Views` page turns the macro model into portfolio-construction inputs. It is separate from the research ranking pages and is built around this contract:
+
+```text
+generate_bl_inputs(as_of, horizon)
+  -> asset_order
+  -> P
+  -> q
+  -> Omega
+  -> view_rationale
+  -> status
+  -> posterior_return_impact
+```
+
+The current MVP uses a 6-month horizon. All BL quantities are horizon-scaled:
+
+- `q`: 6-month active or relative-spread return in decimal units.
+- `P`: sparse view vector with columns matching `exports/bl_asset_order.csv`.
+- `Omega`: 6-month view error variance, scaled by confidence and bounded by configured floors/caps.
+- `Sigma`: monthly covariance scaled to the selected horizon.
+- `pi`: implied equilibrium return from `pi = delta * Sigma * benchmark_weights`.
+
+Active views use the correct benchmark subtraction:
+
+```text
+P = +asset - benchmark basket
+```
+
+Relative views use approved pairs only:
+
+```text
+P = +long asset - short asset
+```
+
+The model does not create all possible pairwise spreads. Approved pairs live in `config/view_pairs.csv`, and `max_views_per_run` caps the number of Candidate views exported to `P/q/Omega`.
+
+No-lookahead rule:
+
+```text
+For horizon H and as_of T:
+training feature date s is allowed only if s + H <= T
+```
+
+For example, with `as_of = 2026-03-31`:
+
+```text
+6m latest eligible training feature date = 2025-09-30
+12m latest eligible training feature date = 2025-03-31
+```
+
+Confidence is not the probability that a view is correct. It is a score used to scale BL view uncertainty:
+
+```text
+Omega = forecast_error_variance / confidence
+```
+
+Every generated view has `Candidate`, `Needs Review`, or `Blocked` status plus a reason. Blocked and Needs Review views do not enter the exported BL matrices.
 
 ## Auto Regime Engine
 

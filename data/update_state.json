@@ -1,12 +1,12 @@
 {
-  "factors_last_date": "2026-03-31",
-  "factors_rows": 219,
+  "factors_last_date": "2026-04-30",
+  "factors_rows": 220,
   "force_full_refresh": false,
   "fred_series": {
     "liquidity": "M2SL",
     "rates": "DGS2"
   },
-  "last_complete_month": "2026-03-31",
+  "last_complete_month": "2026-04-30",
   "price_symbols": [
     "ACWI",
     "AGG",
@@ -59,13 +59,12 @@
     "XLV",
     "XLY"
   ],
-  "prices_last_date": "2026-03-31",
-  "prices_rows": 219,
-  "rewrite_tail_months": 2,
+  "prices_last_date": "2026-04-30",
+  "prices_rows": 220,
+  "rewrite_tail_months": 3,
   "source": "yfinance_fred_public_macro_proxies_v1",
-  "source_audit_kind": "committed_monthly_snapshot_fallback",
   "source_audit_rows": 57,
   "source_audit_schema_version": 2,
   "start": "2008-01-01",
-  "updated_at_utc": "2026-04-28T16:08:30+00:00"
+  "updated_at_utc": "2026-05-05T11:55:32+00:00"
 }
