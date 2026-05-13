@@ -14,9 +14,12 @@ generate_bl_inputs(as_of, horizon)
   -> P
   -> q
   -> Omega
+  -> Sigma
+  -> pi
   -> view_rationale
   -> status
   -> BL posterior return impact
+  -> view transmission audit
 ```
 
 The generated files are:
@@ -30,6 +33,9 @@ exports/bl_asset_order.csv
 exports/P_matrix.csv
 exports/q_vector.csv
 exports/Omega_matrix.csv
+exports/Sigma_matrix.csv
+exports/pi_vector.csv
+data/bl_view_diagnostics.csv
 exports/bl_views.json
 ```
 
@@ -143,6 +149,21 @@ suggested active weight
 ```
 
 The suggested active weight is a diagnostic proportional tilt, not a final optimizer output.
+
+## View Transmission Audit
+
+Every exported Candidate view also receives a view-space audit:
+
+```text
+P dot prior
+P dot posterior
+posterior view move
+remaining gap to q
+pull_to_q
+transmission_flag
+```
+
+`transmission_flag = Opposite` means the full BL posterior moved the view in the opposite direction after covariance and competing views were applied. That is a CIO review flag, not an automatic rejection.
 
 ## Current Limitations
 

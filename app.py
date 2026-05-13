@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import model as model_module
-from bl_views import generate_bl_inputs
+from bl_views import generate_bl_inputs, load_asset_master, load_benchmark_weights, load_bl_settings, load_view_pairs, validate_bl_config
 from model import (
     FACTOR_COLUMNS,
     build_model,
@@ -1093,21 +1093,47 @@ def load_bl_dashboard_bundle(refresh_token: str):
         "views": DATA / "bl_macro_views.csv",
         "runs": DATA / "bl_runs.csv",
         "posterior": DATA / "bl_posterior_returns.csv",
+        "view_diagnostics": DATA / "bl_view_diagnostics.csv",
         "asset_order": exports / "bl_asset_order.csv",
         "P": exports / "P_matrix.csv",
         "q": exports / "q_vector.csv",
         "Omega": exports / "Omega_matrix.csv",
+        "Sigma": exports / "Sigma_matrix.csv",
+        "pi": exports / "pi_vector.csv",
     }
     if all(path.exists() for path in required.values()):
         predictions = pd.read_csv(required["predictions"])
         views = pd.read_csv(required["views"])
         runs = pd.read_csv(required["runs"])
         posterior = pd.read_csv(required["posterior"])
+        view_diagnostics = pd.read_csv(required["view_diagnostics"])
         asset_order = pd.read_csv(required["asset_order"])["ticker"].astype(str).tolist()
         P = pd.read_csv(required["P"], index_col="view_id")
         q = pd.read_csv(required["q"])
         Omega = pd.read_csv(required["Omega"], index_col="view_id")
+        Sigma = pd.read_csv(required["Sigma"], index_col="ticker")
+        pi = pd.read_csv(required["pi"])
         as_of = pd.to_datetime(runs["as_of"].iloc[-1]) if not runs.empty and "as_of" in runs else pd.NaT
+        try:
+            prices_for_audit = load_wide_csv(DATA / "prices.csv")
+            config_audit = validate_bl_config(
+                load_asset_master(CONFIG),
+                load_benchmark_weights(CONFIG),
+                load_view_pairs(CONFIG),
+                prices_for_audit,
+                load_bl_settings(CONFIG),
+                as_of=as_of if pd.notna(as_of) else None,
+            )
+        except Exception as exc:
+            config_audit = pd.DataFrame(
+                [
+                    {
+                        "check": "config_audit",
+                        "status": "Review",
+                        "detail": f"Could not rebuild config audit from precomputed artifacts: {type(exc).__name__}: {exc}",
+                    }
+                ]
+            )
         scenario_context = {}
         if not views.empty and "scenario_context_json" in views:
             try:
@@ -1119,14 +1145,17 @@ def load_bl_dashboard_bundle(refresh_token: str):
             "as_of": as_of,
             "horizon_months": int(runs["horizon_months"].iloc[-1]) if not runs.empty and "horizon_months" in runs else 6,
             "asset_order": asset_order,
-            "config_audit": pd.DataFrame([{"check": "precomputed_exports", "status": "Pass", "detail": "Loaded committed BL artifacts."}]),
+            "config_audit": config_audit,
             "predictions": predictions,
             "views": views,
             "P": P,
             "q": q,
             "Omega": Omega,
+            "Sigma": Sigma,
+            "pi": pi,
             "runs": runs,
             "posterior": posterior,
+            "view_diagnostics": view_diagnostics,
             "scenario_context": scenario_context,
         }
 
@@ -1151,8 +1180,11 @@ def load_bl_dashboard_bundle(refresh_token: str):
         "P": result.P,
         "q": result.q,
         "Omega": result.Omega,
+        "Sigma": result.Sigma,
+        "pi": result.pi,
         "runs": result.bl_runs,
         "posterior": result.posterior_returns,
+        "view_diagnostics": result.view_diagnostics,
         "scenario_context": result.scenario_context,
     }
 
@@ -1979,7 +2011,7 @@ render_note(
 if active_view == "CIO Views":
     st.subheader("Automatic macro views for Black-Litterman")
     st.caption(
-        "Decision objects only: each Candidate view has a formal P vector, q, Omega, confidence score, expiry, rationale, and posterior impact."
+        "Decision objects only: each Candidate view has a formal P vector, q, Omega, confidence score, expiry, rationale, and posterior impact. Candidate means model-exported for CIO review, not human-approved."
     )
     with st.spinner("Loading BL view contract and posterior impact..."):
         bl_bundle = load_bl_dashboard_bundle(refresh_info.get("updated_at_utc", "no-refresh-token"))
@@ -1990,21 +2022,32 @@ if active_view == "CIO Views":
     bl_P = bl_bundle["P"].copy()
     bl_q = bl_bundle["q"].copy()
     bl_Omega = bl_bundle["Omega"].copy()
+    bl_Sigma = bl_bundle["Sigma"].copy()
+    bl_pi = bl_bundle["pi"].copy()
+    bl_view_diagnostics = bl_bundle["view_diagnostics"].copy()
     bl_as_of = pd.to_datetime(bl_bundle.get("as_of"), errors="coerce")
     config_audit = bl_bundle["config_audit"].copy()
     candidate_count = int(bl_views["status"].eq("Candidate").sum()) if not bl_views.empty and "status" in bl_views else 0
     needs_review_count = int(bl_views["status"].eq("Needs Review").sum()) if not bl_views.empty and "status" in bl_views else 0
     blocked_count = int(bl_views["status"].eq("Blocked").sum()) if not bl_views.empty and "status" in bl_views else 0
     config_failures = int(config_audit["status"].eq("Fail").sum()) if not config_audit.empty and "status" in config_audit else 0
+    config_reviews = int(config_audit["status"].eq("Review").sum()) if not config_audit.empty and "status" in config_audit else 0
     stale_bl = pd.notna(expected_month) and pd.notna(bl_as_of) and pd.Timestamp(bl_as_of).date() != pd.Timestamp(expected_month).date()
-    bl_status = "Ready" if candidate_count > 0 and config_failures == 0 and not stale_bl else ("Stale" if stale_bl else "Review")
+    transmission_flags = bl_view_diagnostics["transmission_flag"].value_counts().to_dict() if not bl_view_diagnostics.empty and "transmission_flag" in bl_view_diagnostics else {}
+    opposite_transmissions = int(transmission_flags.get("Opposite", 0))
+    bl_status = (
+        "Ready"
+        if candidate_count > 0 and config_failures == 0 and config_reviews == 0 and opposite_transmissions == 0 and not stale_bl
+        else ("Stale" if stale_bl else "Review")
+    )
     render_status_grid(
         [
             {"label": "BL status", "value": bl_status, "detail": f"{candidate_count} exported views", "tone": "good" if bl_status == "Ready" else "warn"},
             {"label": "As of", "value": bl_as_of.strftime("%b %Y") if pd.notna(bl_as_of) else "n/a", "detail": f"{bl_bundle['source']} artifacts", "tone": "info"},
-            {"label": "Matrix", "value": f"{len(bl_P)} x {len(bl_bundle['asset_order'])}", "detail": "P rows x asset columns", "tone": "info"},
+            {"label": "Matrix", "value": f"{len(bl_P)} x {len(bl_bundle['asset_order'])}", "detail": f"P rows x assets | Sigma {len(bl_Sigma)} x {len(bl_Sigma.columns)}", "tone": "info"},
             {"label": "Review queue", "value": f"{needs_review_count} / {blocked_count}", "detail": "Needs Review / Blocked", "tone": "warn" if needs_review_count or blocked_count else "good"},
             {"label": "Horizon", "value": f"{int(bl_bundle['horizon_months'])}m", "detail": "Horizon-scaled units", "tone": "info"},
+            {"label": "BL audit flags", "value": f"{config_reviews} / {opposite_transmissions}", "detail": "Config review / opposite pull", "tone": "warn" if config_reviews or opposite_transmissions else "good"},
         ]
     )
     if stale_bl:
@@ -2014,8 +2057,12 @@ if active_view == "CIO Views":
         )
     if config_failures:
         st.error("BL configuration has failing checks. Candidate exports should not be used until these are fixed.")
+    elif config_reviews:
+        st.warning("BL configuration has review flags. Most commonly this means placeholder benchmark weights are still being used.")
     else:
         st.success("BL contract checks passed for the displayed artifact set.")
+    if opposite_transmissions:
+        st.warning("At least one Candidate view moves opposite its standalone q after the full BL posterior. Open View transmission diagnostics before using the export.")
 
     render_cio_view_cards(bl_views, limit=6)
 
@@ -2038,11 +2085,53 @@ if active_view == "CIO Views":
         polish_figure(fig, height=480)
         st.plotly_chart(fig, width="stretch")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.download_button("Views CSV", bl_views.to_csv(index=False), "bl_macro_views.csv", "text/csv", use_container_width=True)
-    c2.download_button("P matrix", bl_P.to_csv(index=True, index_label="view_id"), "P_matrix.csv", "text/csv", use_container_width=True)
-    c3.download_button("q vector", bl_q.to_csv(index=False), "q_vector.csv", "text/csv", use_container_width=True)
+    if not bl_view_diagnostics.empty:
+        st.subheader("View transmission audit")
+        st.caption("For each exported Candidate view: compare the model view `q` with `P·prior` and `P·posterior` to see whether BL moved in the intended direction.")
+        diag = bl_view_diagnostics.copy()
+        for col in ["q_expected_return", "prior_view_return", "posterior_view_return", "posterior_minus_prior_view", "remaining_gap_to_q", "pull_to_q", "confidence_score"]:
+            diag[col] = pd.to_numeric(diag[col], errors="coerce")
+        diag["pull_display"] = diag["pull_to_q"].clip(lower=-1.0, upper=1.5) * 100.0
+        diag_plot = diag.sort_values("posterior_minus_prior_view", key=lambda s: s.abs(), ascending=False).head(12)
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=diag_plot["posterior_minus_prior_view"] * 100.0,
+                y=diag_plot["assets"],
+                orientation="h",
+                marker_color=np.where(diag_plot["posterior_minus_prior_view"] >= 0, COLORS["positive"], COLORS["negative"]),
+                name="P·posterior - P·prior",
+                customdata=np.column_stack(
+                    [
+                        diag_plot["q_expected_return"] * 100.0,
+                        diag_plot["prior_view_return"] * 100.0,
+                        diag_plot["posterior_view_return"] * 100.0,
+                        diag_plot["pull_display"],
+                    ]
+                ),
+                hovertemplate=(
+                    "%{y}<br>"
+                    "View move: %{x:.2f}%<br>"
+                    "q: %{customdata[0]:.2f}%<br>"
+                    "P-prior: %{customdata[1]:.2f}%<br>"
+                    "P-posterior: %{customdata[2]:.2f}%<br>"
+                    "Pull to q: %{customdata[3]:.1f}%<extra></extra>"
+                ),
+            )
+        )
+        fig.add_vline(x=0, line_width=1, line_dash="dash", line_color=COLORS["unknown"])
+        fig.update_layout(xaxis_title="BL transmission into view space, %", yaxis_title="", height=430)
+        polish_figure(fig, height=430)
+        st.plotly_chart(fig, width="stretch")
+
+    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1.download_button("Views", bl_views.to_csv(index=False), "bl_macro_views.csv", "text/csv", use_container_width=True)
+    c2.download_button("P", bl_P.to_csv(index=True, index_label="view_id"), "P_matrix.csv", "text/csv", use_container_width=True)
+    c3.download_button("q", bl_q.to_csv(index=False), "q_vector.csv", "text/csv", use_container_width=True)
     c4.download_button("Omega", bl_Omega.to_csv(index=True, index_label="view_id"), "Omega_matrix.csv", "text/csv", use_container_width=True)
+    c5.download_button("Sigma", bl_Sigma.to_csv(index=True, index_label="ticker"), "Sigma_matrix.csv", "text/csv", use_container_width=True)
+    c6.download_button("pi", bl_pi.to_csv(index=False), "pi_vector.csv", "text/csv", use_container_width=True)
+    c7.download_button("Audit", bl_view_diagnostics.to_csv(index=False), "bl_view_diagnostics.csv", "text/csv", use_container_width=True)
 
     with st.expander("Formal Candidate view table", expanded=False):
         formal_cols = [
@@ -2069,6 +2158,44 @@ if active_view == "CIO Views":
             width="stretch",
         )
 
+    with st.expander("View transmission diagnostics", expanded=False):
+        if bl_view_diagnostics.empty:
+            st.info("No Candidate views were exported, so there is no BL transmission audit.")
+        else:
+            diag_table = bl_view_diagnostics.copy()
+            for source_col, target_col in [
+                ("q_expected_return", "q_pct"),
+                ("prior_view_return", "p_prior_pct"),
+                ("posterior_view_return", "p_posterior_pct"),
+                ("posterior_minus_prior_view", "view_move_pct"),
+                ("remaining_gap_to_q", "gap_to_q_pct"),
+                ("confidence_score", "confidence_pct"),
+            ]:
+                diag_table[target_col] = pd.to_numeric(diag_table[source_col], errors="coerce") * 100.0
+            diag_table["pull_to_q_pct"] = pd.to_numeric(diag_table["pull_to_q"], errors="coerce") * 100.0
+            st.dataframe(
+                format_pct_columns(
+                    diag_table[
+                        [
+                            "view_id",
+                            "assets",
+                            "view_type",
+                            "q_pct",
+                            "p_prior_pct",
+                            "p_posterior_pct",
+                            "view_move_pct",
+                            "gap_to_q_pct",
+                            "pull_to_q_pct",
+                            "transmission_flag",
+                            "confidence_pct",
+                            "omega",
+                        ]
+                    ],
+                    ["q_pct", "p_prior_pct", "p_posterior_pct", "view_move_pct", "gap_to_q_pct", "pull_to_q_pct", "confidence_pct", "omega"],
+                ),
+                width="stretch",
+            )
+
     with st.expander("Blocked and Needs Review views", expanded=False):
         review = bl_views[~bl_views["status"].eq("Candidate")].copy()
         if review.empty:
@@ -2094,6 +2221,8 @@ if active_view == "CIO Views":
             st.dataframe(config_audit, width="stretch")
         st.markdown("**Asset order**")
         st.dataframe(pd.DataFrame({"column_index": range(len(bl_bundle["asset_order"])), "ticker": bl_bundle["asset_order"]}), width="stretch")
+        st.markdown("**Prior returns pi**")
+        st.dataframe(format_pct_columns(bl_pi.copy(), ["prior_return"]), width="stretch")
 
     with st.expander("Methodology", expanded=False):
         st.markdown(
@@ -2102,7 +2231,9 @@ if active_view == "CIO Views":
             - `P` columns follow the exported asset order exactly.
             - Active views use `+asset - benchmark basket`; relative views use `+long - short`.
             - `Omega` is forecast error variance divided by confidence, with configured floors and caps.
+            - `Sigma` and `pi` are exported with the same asset order as `P`; `pi = delta * Sigma * benchmark_weights`.
             - Confidence scales BL uncertainty. It is not a probability that the view is right.
+            - The transmission audit computes `P·prior`, `P·posterior`, and distance to `q` for every exported view.
             - Macro features are lagged one month to reduce release-lag and revision-bias risk in public proxy data.
             """
         )

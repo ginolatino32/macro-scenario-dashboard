@@ -148,9 +148,12 @@ generate_bl_inputs(as_of, horizon)
   -> P
   -> q
   -> Omega
+  -> Sigma
+  -> pi
   -> view_rationale
   -> status
   -> posterior_return_impact
+  -> view_transmission_audit
 ```
 
 The current MVP uses a 6-month horizon. All BL quantities are horizon-scaled:
@@ -160,6 +163,7 @@ The current MVP uses a 6-month horizon. All BL quantities are horizon-scaled:
 - `Omega`: 6-month view error variance, scaled by confidence and bounded by configured floors/caps.
 - `Sigma`: monthly covariance scaled to the selected horizon.
 - `pi`: implied equilibrium return from `pi = delta * Sigma * benchmark_weights`.
+- `view_transmission_audit`: per-view `P*prior`, `P*posterior`, pull-to-q, and transmission flag.
 
 Active views use the correct benchmark subtraction:
 
@@ -174,6 +178,18 @@ P = +long asset - short asset
 ```
 
 The model does not create all possible pairwise spreads. Approved pairs live in `config/view_pairs.csv`, and `max_views_per_run` caps the number of Candidate views exported to `P/q/Omega`.
+
+Export files:
+
+- `exports/bl_asset_order.csv`
+- `exports/P_matrix.csv`
+- `exports/q_vector.csv`
+- `exports/Omega_matrix.csv`
+- `exports/Sigma_matrix.csv`
+- `exports/pi_vector.csv`
+- `data/bl_view_diagnostics.csv`
+
+`Candidate` means model-exported for CIO review. It does not mean a human has approved the view for investment use.
 
 No-lookahead rule:
 

@@ -69,8 +69,11 @@ class BLResult:
     P: pd.DataFrame
     q: pd.DataFrame
     Omega: pd.DataFrame
+    Sigma: pd.DataFrame
+    pi: pd.DataFrame
     bl_runs: pd.DataFrame
     posterior_returns: pd.DataFrame
+    view_diagnostics: pd.DataFrame
     scenario_context: dict[str, object]
 
 
@@ -209,6 +212,12 @@ def validate_bl_config(
         if missing_components:
             detail += f", missing components={missing_components}"
         add(f"benchmark_{benchmark_id}", status, detail)
+        if "is_placeholder" in weights and weights["is_placeholder"].map(_parse_bool).any():
+            add(
+                f"benchmark_{benchmark_id}_source",
+                "Review",
+                "Benchmark uses placeholder/sample weights; replace with GSMIF policy or current holdings before investment use.",
+            )
 
     pair_assets = set(view_pairs["long_ticker"]).union(set(view_pairs["short_ticker"]))
     missing_pair_assets = sorted(pair_assets - set(asset_master["ticker"]))
@@ -964,7 +973,7 @@ def run_black_litterman(
     Omega: pd.DataFrame,
     settings: dict[str, object],
     as_of: str | pd.Timestamp,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     as_of_ts = pd.Timestamp(as_of)
     Sigma = _covariance_matrix(prices, asset_order, settings, as_of_ts)
     benchmark_id = str(settings.get("policy_benchmark_id", "GSMIF_SAMPLE_POLICY"))
@@ -972,6 +981,7 @@ def run_black_litterman(
     delta = float(settings["risk_aversion_delta"])
     tau = float(settings["tau"])
     pi = pd.Series(delta * Sigma.to_numpy().dot(benchmark.to_numpy()), index=asset_order, name="prior_return")
+    pi_frame = pi.rename_axis("ticker").reset_index()
 
     if P.empty or q.empty or Omega.empty:
         posterior = pi.copy()
@@ -1034,7 +1044,76 @@ def run_black_litterman(
             }
         ]
     )
-    return run, posterior_returns
+    return run, posterior_returns, Sigma, pi_frame
+
+
+def build_view_diagnostics(
+    views: pd.DataFrame,
+    P: pd.DataFrame,
+    q: pd.DataFrame,
+    posterior_returns: pd.DataFrame,
+) -> pd.DataFrame:
+    if views.empty or P.empty or q.empty or posterior_returns.empty:
+        return pd.DataFrame(
+            columns=[
+                "view_id",
+                "assets",
+                "view_type",
+                "q_expected_return",
+                "prior_view_return",
+                "posterior_view_return",
+                "posterior_minus_prior_view",
+                "remaining_gap_to_q",
+                "pull_to_q",
+                "transmission_flag",
+                "confidence_score",
+                "omega",
+                "status",
+            ]
+        )
+
+    posterior = posterior_returns.set_index("ticker")
+    prior_vector = posterior["prior_return"].astype(float)
+    posterior_vector = posterior["posterior_return"].astype(float)
+    q_vector = q.set_index("view_id")["q_expected_return"].astype(float)
+    view_meta = views.set_index("view_id")
+    rows: list[dict[str, object]] = []
+    for view_id, p_vector in P.iterrows():
+        aligned_p = p_vector.reindex(prior_vector.index).fillna(0.0).astype(float)
+        prior_view = float(aligned_p.dot(prior_vector))
+        posterior_view = float(aligned_p.dot(posterior_vector))
+        q_value = float(q_vector.get(view_id, np.nan))
+        original_gap = q_value - prior_view
+        remaining_gap = q_value - posterior_view
+        moved = posterior_view - prior_view
+        pull_to_q = moved / original_gap if abs(original_gap) > 1e-10 else np.nan
+        if not np.isfinite(pull_to_q):
+            transmission_flag = "Neutral"
+        elif pull_to_q < -0.01:
+            transmission_flag = "Opposite"
+        elif pull_to_q < 0.02:
+            transmission_flag = "Weak"
+        else:
+            transmission_flag = "Aligned"
+        meta = view_meta.loc[view_id] if view_id in view_meta.index else pd.Series(dtype=object)
+        rows.append(
+            {
+                "view_id": view_id,
+                "assets": str(meta.get("assets", "")),
+                "view_type": str(meta.get("view_type", "")),
+                "q_expected_return": q_value,
+                "prior_view_return": prior_view,
+                "posterior_view_return": posterior_view,
+                "posterior_minus_prior_view": moved,
+                "remaining_gap_to_q": remaining_gap,
+                "pull_to_q": float(pull_to_q) if np.isfinite(pull_to_q) else np.nan,
+                "transmission_flag": transmission_flag,
+                "confidence_score": float(meta.get("confidence_score", np.nan)),
+                "omega": float(meta.get("omega", np.nan)),
+                "status": str(meta.get("status", "")),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def generate_bl_inputs(
@@ -1074,7 +1153,7 @@ def generate_bl_inputs(
         scenario_context=scenario_context,
     )
     P, q, Omega = build_P_q_Omega(views, asset_order)
-    bl_runs, posterior_returns = run_black_litterman(
+    bl_runs, posterior_returns, Sigma, pi = run_black_litterman(
         prices,
         asset_master,
         benchmark_weights,
@@ -1085,6 +1164,7 @@ def generate_bl_inputs(
         settings,
         as_of=as_of_ts,
     )
+    view_diagnostics = build_view_diagnostics(views, P, q, posterior_returns)
     return BLResult(
         as_of=as_of_ts,
         horizon_months=int(settings["horizon_months"]),
@@ -1096,8 +1176,11 @@ def generate_bl_inputs(
         P=P,
         q=q,
         Omega=Omega,
+        Sigma=Sigma,
+        pi=pi,
         bl_runs=bl_runs,
         posterior_returns=posterior_returns,
+        view_diagnostics=view_diagnostics,
         scenario_context=scenario_context,
     )
 
@@ -1113,6 +1196,7 @@ def write_bl_outputs(result: BLResult, root: str | Path) -> None:
     result.views.to_csv(data_dir / "bl_macro_views.csv", index=False)
     result.bl_runs.to_csv(data_dir / "bl_runs.csv", index=False)
     result.posterior_returns.to_csv(data_dir / "bl_posterior_returns.csv", index=False)
+    result.view_diagnostics.to_csv(data_dir / "bl_view_diagnostics.csv", index=False)
 
     pd.DataFrame({"ticker": result.asset_order, "column_index": range(len(result.asset_order))}).to_csv(
         exports_dir / "bl_asset_order.csv",
@@ -1121,6 +1205,8 @@ def write_bl_outputs(result: BLResult, root: str | Path) -> None:
     result.P.to_csv(exports_dir / "P_matrix.csv", index=True, index_label="view_id")
     result.q.to_csv(exports_dir / "q_vector.csv", index=False)
     result.Omega.to_csv(exports_dir / "Omega_matrix.csv", index=True, index_label="view_id")
+    result.Sigma.to_csv(exports_dir / "Sigma_matrix.csv", index=True, index_label="ticker")
+    result.pi.to_csv(exports_dir / "pi_vector.csv", index=False)
     payload = {
         "as_of": result.as_of.date().isoformat(),
         "horizon_months": result.horizon_months,
@@ -1129,6 +1215,9 @@ def write_bl_outputs(result: BLResult, root: str | Path) -> None:
         "P": result.P.to_dict(orient="index"),
         "q": result.q.to_dict(orient="records"),
         "Omega": result.Omega.to_dict(orient="index"),
+        "Sigma": result.Sigma.to_dict(orient="index"),
+        "pi": result.pi.to_dict(orient="records"),
+        "view_diagnostics": result.view_diagnostics.to_dict(orient="records"),
         "scenario_context": result.scenario_context,
     }
     (exports_dir / "bl_views.json").write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")

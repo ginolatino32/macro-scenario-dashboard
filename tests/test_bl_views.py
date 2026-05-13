@@ -11,10 +11,13 @@ from bl_views import (
     _relative_p_vector,
     build_P_q_Omega,
     build_forward_return_labels,
+    build_view_diagnostics,
     load_asset_master,
     load_benchmark_weights,
     load_bl_settings,
+    load_view_pairs,
     run_black_litterman,
+    validate_bl_config,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,20 +128,55 @@ def test_black_litterman_zero_view_and_omega_sanity() -> None:
     empty_P = pd.DataFrame(columns=asset_order)
     empty_q = pd.DataFrame(columns=["view_id", "q_expected_return"])
     empty_Omega = pd.DataFrame()
-    _, zero_post = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, empty_P, empty_q, empty_Omega, settings, idx[-1])
+    _, zero_post, _, _ = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, empty_P, empty_q, empty_Omega, settings, idx[-1])
     assert np.allclose(zero_post["prior_return"], zero_post["posterior_return"])
 
     P = pd.DataFrame([[0.0, 1.0, -1.0]], index=["rel"], columns=asset_order)
     q = pd.DataFrame([{"view_id": "rel", "q_expected_return": 0.05}])
     high_Omega = pd.DataFrame([[1.0]], index=["rel"], columns=["rel"])
     low_Omega = pd.DataFrame([[0.0001]], index=["rel"], columns=["rel"])
-    _, high_post = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, P, q, high_Omega, settings, idx[-1])
-    _, low_post = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, P, q, low_Omega, settings, idx[-1])
+    _, high_post, high_sigma, high_pi = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, P, q, high_Omega, settings, idx[-1])
+    _, low_post, _, _ = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, P, q, low_Omega, settings, idx[-1])
 
     high_spread = float(high_post.set_index("ticker").loc["XLE", "posterior_minus_prior"] - high_post.set_index("ticker").loc["XLY", "posterior_minus_prior"])
     low_spread = float(low_post.set_index("ticker").loc["XLE", "posterior_minus_prior"] - low_post.set_index("ticker").loc["XLY", "posterior_minus_prior"])
     assert low_spread > high_spread
     assert low_spread > 0
+    assert high_sigma.shape == (3, 3)
+    assert high_pi.shape == (3, 2)
+
+
+def test_view_diagnostics_report_bl_transmission() -> None:
+    views = pd.DataFrame(
+        [
+            {
+                "view_id": "rel",
+                "status": "Candidate",
+                "assets": "XLE - XLY",
+                "view_type": "relative",
+                "q_expected_return": 0.05,
+                "confidence_score": 0.60,
+                "omega": 0.01,
+            }
+        ]
+    )
+    P = pd.DataFrame([[0.0, 1.0, -1.0]], index=["rel"], columns=["SPY", "XLE", "XLY"])
+    q = pd.DataFrame([{"view_id": "rel", "q_expected_return": 0.05}])
+    posterior_returns = pd.DataFrame(
+        [
+            {"ticker": "SPY", "prior_return": 0.02, "posterior_return": 0.02},
+            {"ticker": "XLE", "prior_return": 0.03, "posterior_return": 0.055},
+            {"ticker": "XLY", "prior_return": 0.01, "posterior_return": 0.005},
+        ]
+    )
+    diagnostics = build_view_diagnostics(views, P, q, posterior_returns)
+    assert diagnostics.shape[0] == 1
+    row = diagnostics.iloc[0]
+    assert np.isclose(row["prior_view_return"], 0.02)
+    assert np.isclose(row["posterior_view_return"], 0.05)
+    assert np.isclose(row["remaining_gap_to_q"], 0.0)
+    assert row["pull_to_q"] > 0
+    assert row["transmission_flag"] == "Aligned"
 
 
 def test_generated_exports_round_trip_contract() -> None:
@@ -147,6 +185,8 @@ def test_generated_exports_round_trip_contract() -> None:
     P = pd.read_csv(ROOT / "exports" / "P_matrix.csv", index_col="view_id")
     q = pd.read_csv(ROOT / "exports" / "q_vector.csv")
     Omega = pd.read_csv(ROOT / "exports" / "Omega_matrix.csv", index_col="view_id")
+    Sigma = pd.read_csv(ROOT / "exports" / "Sigma_matrix.csv", index_col="ticker")
+    pi = pd.read_csv(ROOT / "exports" / "pi_vector.csv")
 
     candidates = views[views["status"].eq("Candidate")]
     assert len(asset_order) == len(P.columns)
@@ -154,11 +194,17 @@ def test_generated_exports_round_trip_contract() -> None:
     assert q.shape[0] == len(candidates)
     assert Omega.shape == (len(candidates), len(candidates))
     assert P.columns.tolist() == asset_order
+    assert Sigma.shape == (len(asset_order), len(asset_order))
+    assert Sigma.columns.tolist() == asset_order
+    assert pi.shape[0] == len(asset_order)
     assert np.all(np.diag(Omega.to_numpy(dtype=float)) > 0)
     assert np.allclose(Omega.to_numpy(dtype=float), np.diag(np.diag(Omega.to_numpy(dtype=float))))
     payload = json.loads((ROOT / "exports" / "bl_views.json").read_text())
     assert payload["asset_order"] == asset_order
     assert len(payload["views"]) == len(views)
+    assert "view_diagnostics" in payload
+    assert "Sigma" in payload
+    assert "pi" in payload
 
 
 def test_config_contract_loads_and_weights_sum_to_one() -> None:
@@ -169,3 +215,12 @@ def test_config_contract_loads_and_weights_sum_to_one() -> None:
     assert asset_master["is_bl_eligible"].sum() >= 30
     sums = benchmark_weights.groupby("benchmark_id")["weight"].sum().round(8)
     assert (sums == 1.0).all()
+    audit = validate_bl_config(
+        asset_master,
+        benchmark_weights,
+        load_view_pairs(ROOT / "config"),
+        pd.read_csv(ROOT / "data" / "prices.csv", index_col=0),
+        settings,
+        pd.Timestamp("2026-04-30"),
+    )
+    assert "Review" in set(audit["status"])
