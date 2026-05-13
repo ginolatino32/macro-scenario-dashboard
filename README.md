@@ -189,7 +189,13 @@ Export files:
 - `exports/pi_vector.csv`
 - `data/bl_view_diagnostics.csv`
 
-`Candidate` means model-exported for CIO review. It does not mean a human has approved the view for investment use.
+`model_status = Candidate` means the model found a material view with enough confidence and q/view-SD evidence for research review. `status = Candidate` is stricter: it means the view passed production export gates and enters `P/q/Omega`. A view is not CIO-approved until a separate human approval layer is added.
+
+Current hard gates:
+
+- Placeholder/sample benchmarks cannot enter Candidate export.
+- Latest-revised macro proxy data cannot enter Candidate export; point-in-time or real-time-vintage macro data is required.
+- Views with weak `q / sqrt(Omega)` stay in review even if raw `q` is material.
 
 No-lookahead rule:
 
@@ -211,7 +217,7 @@ Confidence is not the probability that a view is correct. It is a score used to 
 Omega = forecast_error_variance / confidence
 ```
 
-Every generated view has `Candidate`, `Needs Review`, or `Blocked` status plus a reason. Blocked and Needs Review views do not enter the exported BL matrices.
+Every generated view has `status`, `model_status`, `approval_status`, `block_rule`, and `block_reason`. Blocked and Needs Review views do not enter the exported BL matrices.
 
 ## Auto Regime Engine
 

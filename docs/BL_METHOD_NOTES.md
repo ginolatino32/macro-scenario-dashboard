@@ -128,6 +128,33 @@ data freshness penalty
 
 Blocked and Needs Review views do not enter `P/q/Omega`.
 
+## Production Export Gates
+
+The dashboard now separates model research status from export status:
+
+```text
+model_status = Candidate | Needs Review | Blocked
+status       = Candidate | Needs Review | Blocked
+approval_status = Draft | Not exportable
+```
+
+`model_status = Candidate` means the statistical screen passed. `status = Candidate` means the view is eligible for the exported BL matrix package. Under the current public-proxy configuration, model candidates are blocked from export because:
+
+```text
+macro_data_mode = latest_revised
+benchmark weights are marked placeholder/sample
+```
+
+Hard gates:
+
+```text
+block_non_point_in_time_macro = TRUE
+block_placeholder_benchmark = TRUE
+min_view_z_abs = 0.50
+```
+
+The `q / sqrt(Omega)` evidence ratio is shown in the CIO page and stored as `q_over_view_sd`.
+
 ## Black-Litterman Posterior
 
 The posterior mean uses:
@@ -167,8 +194,8 @@ transmission_flag
 
 ## Current Limitations
 
-- Benchmark weights are sample placeholders until actual GSMIF policy/current holdings are supplied.
-- Public macro data uses latest revised proxy series and is not a full real-time vintage dataset.
+- Benchmark weights are sample placeholders until actual GSMIF policy/current holdings are supplied; these now block Candidate export.
+- Public macro data uses latest revised proxy series and is not a full real-time vintage dataset; this now blocks Candidate export.
 - 12-month views are configured for later validation but are not the primary MVP output.
 - Relative-view Omega uses the conservative diagonal residual approximation in v1.
-- Manual approval is not persisted. The app uses only `Candidate`, `Needs Review`, and `Blocked`.
+- Manual approval is not persisted. The app now exposes `approval_status`, but it is not yet a durable approval workflow.

@@ -42,6 +42,10 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "max_validation_points": 72,
     "max_views_per_run": 10,
     "view_expiry_months": 1,
+    "macro_data_mode": "latest_revised",
+    "block_non_point_in_time_macro": True,
+    "block_placeholder_benchmark": True,
+    "min_view_z_abs": 0.50,
 }
 
 BOOL_COLUMNS = {
@@ -172,6 +176,35 @@ def _latest_benchmark_weights(
     if total > 0:
         weights = weights / total
     return weights
+
+
+def _latest_benchmark_rows(
+    benchmark_weights: pd.DataFrame,
+    benchmark_id: str,
+    as_of: pd.Timestamp,
+) -> pd.DataFrame:
+    if not benchmark_id or pd.isna(benchmark_id):
+        return pd.DataFrame()
+    rows = benchmark_weights[benchmark_weights["benchmark_id"].eq(str(benchmark_id))].copy()
+    if rows.empty:
+        return pd.DataFrame()
+    rows = rows[rows["as_of"] <= pd.Timestamp(as_of)]
+    if rows.empty:
+        return pd.DataFrame()
+    return rows[rows["as_of"].eq(rows["as_of"].max())].copy()
+
+
+def _benchmark_is_placeholder(
+    benchmark_weights: pd.DataFrame,
+    benchmark_id: str,
+    as_of: pd.Timestamp,
+) -> bool:
+    rows = _latest_benchmark_rows(benchmark_weights, benchmark_id, as_of)
+    return bool(not rows.empty and "is_placeholder" in rows and rows["is_placeholder"].map(_parse_bool).any())
+
+
+def _macro_data_is_point_in_time(settings: dict[str, object]) -> bool:
+    return str(settings.get("macro_data_mode", "latest_revised")).strip().lower() in {"point_in_time", "pit", "real_time_vintage"}
 
 
 def validate_bl_config(
@@ -614,23 +647,28 @@ def _prediction_confidence(
 def _view_status(
     q_value: float,
     confidence: float,
+    omega: float,
     min_q: float,
     min_confidence: float,
     data_flag: str,
     unknown_probability: float,
     settings: dict[str, object],
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     if str(data_flag).lower() == "blocked":
-        return "Blocked", "Data source is stale or excluded"
+        return "Blocked", "Data source is stale or excluded", "data_source_blocked"
     if unknown_probability >= float(settings["unknown_mixed_block_threshold"]):
-        return "Blocked", "Unknown/Mixed regime probability is above the automatic-view block threshold"
+        return "Blocked", "Unknown/Mixed regime probability is above the automatic-view block threshold", "unknown_mixed_block"
     if not np.isfinite(q_value):
-        return "Blocked", "Forecast q is unavailable"
+        return "Blocked", "Forecast q is unavailable", "q_unavailable"
     if abs(q_value) < float(min_q):
-        return "Blocked", "Forecast q is below the minimum materiality threshold"
+        return "Blocked", f"Forecast q is below the minimum materiality threshold ({abs(q_value):.4f} < {float(min_q):.4f})", "below_materiality"
     if confidence < float(min_confidence):
-        return "Needs Review", "Confidence is below the candidate threshold"
-    return "Candidate", ""
+        return "Needs Review", f"Confidence is below the candidate threshold ({confidence:.3f} < {float(min_confidence):.3f})", "low_confidence"
+    view_z = abs(q_value) / np.sqrt(omega) if np.isfinite(omega) and omega > 0 else np.nan
+    min_view_z = float(settings.get("min_view_z_abs", 0.0) or 0.0)
+    if min_view_z > 0 and (not np.isfinite(view_z) or view_z < min_view_z):
+        return "Needs Review", f"q / view SD is below the evidence threshold ({view_z:.2f} < {min_view_z:.2f})", "low_q_over_view_sd"
+    return "Candidate", "", ""
 
 
 def _sparse_json_from_vector(vector: pd.Series) -> str:
@@ -737,9 +775,14 @@ def generate_bl_views(
         rationale: str,
         risks: str,
         status: str,
+        model_status: str,
         block_reason: str,
+        block_rule: str,
         forecast_model: str,
     ) -> None:
+        view_sd = float(np.sqrt(omega)) if np.isfinite(omega) and omega >= 0 else np.nan
+        view_z = float(q_value / view_sd) if np.isfinite(q_value) and np.isfinite(view_sd) and view_sd > 0 else np.nan
+        approval_status = "Draft" if status == "Candidate" else "Not exportable"
         rows.append(
             {
                 "view_id": view_id,
@@ -755,6 +798,12 @@ def generate_bl_views(
                 "q_units": f"decimal_{horizon}m_return",
                 "confidence_score": confidence,
                 "omega": omega,
+                "view_error_sd": view_sd,
+                "q_over_view_sd": view_z,
+                "q_minus_1sd": q_value - view_sd if np.isfinite(view_sd) else np.nan,
+                "q_plus_1sd": q_value + view_sd if np.isfinite(view_sd) else np.nan,
+                "q_minus_2sd": q_value - 2.0 * view_sd if np.isfinite(view_sd) else np.nan,
+                "q_plus_2sd": q_value + 2.0 * view_sd if np.isfinite(view_sd) else np.nan,
                 "omega_method": omega_method,
                 "omega_units": f"variance_of_decimal_{horizon}m_return",
                 "forecast_model": forecast_model,
@@ -768,7 +817,10 @@ def generate_bl_views(
                 "rationale_short": rationale,
                 "risks": risks,
                 "status": status,
+                "model_status": model_status,
+                "approval_status": approval_status,
                 "block_reason": block_reason,
+                "block_rule": block_rule,
                 "expiry_date": expiry_date,
                 "model_version": MODEL_VERSION,
                 "data_version": as_of_ts.date().isoformat(),
@@ -788,17 +840,28 @@ def generate_bl_views(
         error_var = float(p_row.get("forecast_error_var", np.nan))
         omega = float(np.clip(error_var / max(confidence, 1e-6), float(settings["omega_floor"]), float(settings["omega_cap"])))
         p_vector, p_error = _active_p_vector(ticker, str(m_row.get("benchmark_id", "") or ""), asset_order, benchmark_weights, as_of_ts)
-        status, reason = _view_status(
+        status, reason, block_rule = _view_status(
             q_value,
             confidence,
+            omega,
             min_q=float(settings["min_active_q_threshold"]),
             min_confidence=float(settings["min_candidate_confidence"]),
             data_flag=str(p_row.get("data_freshness_flag", "")),
             unknown_probability=unknown_probability,
             settings=settings,
         )
+        model_status = status
         if p_error:
-            status, reason = "Blocked", p_error
+            status, reason, block_rule = "Blocked", p_error, "p_vector_invalid"
+        benchmark_id = str(m_row.get("benchmark_id", "") or "")
+        if (
+            status == "Candidate"
+            and _parse_bool(settings.get("block_placeholder_benchmark", True))
+            and _benchmark_is_placeholder(benchmark_weights, benchmark_id, as_of_ts)
+        ):
+            status, reason, block_rule = "Blocked", f"Benchmark {benchmark_id} uses placeholder/sample weights", "placeholder_benchmark"
+        if status == "Candidate" and _parse_bool(settings.get("block_non_point_in_time_macro", True)) and not _macro_data_is_point_in_time(settings):
+            status, reason, block_rule = "Blocked", f"Macro data mode is {settings.get('macro_data_mode')}; point-in-time vintages required for Candidate export", "non_point_in_time_macro_data"
         drivers = json.loads(str(p_row.get("top_driver_contrib_json", "{}") or "{}"))
         driver_text = ", ".join(list(drivers.keys())[:3]) or "macro OLS baseline"
         direction = "outperform" if q_value >= 0 else "underperform"
@@ -827,7 +890,9 @@ def generate_bl_views(
             rationale=rationale,
             risks="Public proxy data uses latest revised vintage; macro features are lagged one month.",
             status=status,
+            model_status=model_status,
             block_reason=reason,
+            block_rule=block_rule,
             forecast_model=str(p_row.get("model_name", "")),
         )
 
@@ -849,17 +914,32 @@ def generate_bl_views(
         error_var = float(long_pred.get("forecast_error_var", np.nan)) + float(short_pred.get("forecast_error_var", np.nan))
         omega = float(np.clip(error_var / max(confidence, 1e-6), float(settings["omega_floor"]), float(settings["omega_cap"])))
         p_vector, p_error = _relative_p_vector(long_ticker, short_ticker, asset_order)
-        status, reason = _view_status(
+        status, reason, block_rule = _view_status(
             q_value,
             confidence,
+            omega,
             min_q=float(pair["min_q_threshold"]),
             min_confidence=float(pair["min_confidence"]),
             data_flag="Current",
             unknown_probability=unknown_probability,
             settings=settings,
         )
+        model_status = status
         if p_error:
-            status, reason = "Blocked", p_error
+            status, reason, block_rule = "Blocked", p_error, "p_vector_invalid"
+        long_benchmark = str(long_pred.get("benchmark_id", "") or "")
+        short_benchmark = str(short_pred.get("benchmark_id", "") or "")
+        if (
+            status == "Candidate"
+            and _parse_bool(settings.get("block_placeholder_benchmark", True))
+            and (
+                _benchmark_is_placeholder(benchmark_weights, long_benchmark, as_of_ts)
+                or _benchmark_is_placeholder(benchmark_weights, short_benchmark, as_of_ts)
+            )
+        ):
+            status, reason, block_rule = "Blocked", "Underlying relative-view forecasts use placeholder/sample benchmark weights", "placeholder_benchmark"
+        if status == "Candidate" and _parse_bool(settings.get("block_non_point_in_time_macro", True)) and not _macro_data_is_point_in_time(settings):
+            status, reason, block_rule = "Blocked", f"Macro data mode is {settings.get('macro_data_mode')}; point-in-time vintages required for Candidate export", "non_point_in_time_macro_data"
         direction = "outperform" if q_value >= 0 else "underperform"
         rationale = f"{long_ticker} is forecast to {direction} {short_ticker} by {q_value:+.1%} over {horizon}m."
         long_drivers = json.loads(str(long_pred.get("top_driver_contrib_json", "{}") or "{}"))
@@ -885,7 +965,9 @@ def generate_bl_views(
             rationale=rationale,
             risks="Relative view uses diagonal residual-error approximation in v1.",
             status=status,
+            model_status=model_status,
             block_reason=reason,
+            block_rule=block_rule,
             forecast_model=str(long_pred.get("model_name", "")),
         )
 
@@ -898,6 +980,8 @@ def generate_bl_views(
     if len(overflow) > 0:
         views.loc[overflow, "status"] = "Needs Review"
         views.loc[overflow, "block_reason"] = "Candidate cap reached; not exported to P/q/Omega"
+        views.loc[overflow, "block_rule"] = "candidate_cap"
+        views.loc[overflow, "approval_status"] = "Not exportable"
     return views.drop(columns=["_candidate_score"]).sort_values(["status", "confidence_score", "q_expected_return"], ascending=[True, False, False])
 
 

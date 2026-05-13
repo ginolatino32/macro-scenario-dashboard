@@ -885,26 +885,63 @@ def render_leader_list(
 
 def render_cio_view_cards(views: pd.DataFrame, limit: int = 6) -> None:
     candidates = views[views["status"].eq("Candidate")].copy() if not views.empty else pd.DataFrame()
+    title_prefix = "Exported Candidate"
     if candidates.empty:
-        st.warning("No candidate BL views passed the current contract. Open the blocked table to see why.")
+        candidates = views[views.get("model_status", pd.Series(dtype=str)).eq("Candidate")].copy() if not views.empty and "model_status" in views else pd.DataFrame()
+        title_prefix = "Model Candidate"
+    if candidates.empty:
+        st.warning("No model or export candidates passed the current contract. Open the blocked table to see why.")
         return
-    candidates = candidates.sort_values(["confidence_score", "q_expected_return"], ascending=[False, False]).head(limit)
+    candidates["abs_z"] = pd.to_numeric(candidates.get("q_over_view_sd", np.nan), errors="coerce").abs()
+    candidates = candidates.sort_values(["abs_z", "confidence_score"], ascending=[False, False]).head(limit)
     cards = []
     for _, row in candidates.iterrows():
         q_pct = float(row.get("q_expected_return", np.nan)) * 100.0
+        view_sd_pct = float(row.get("view_error_sd", np.nan)) * 100.0
+        q_z = float(row.get("q_over_view_sd", np.nan))
         confidence_pct = float(row.get("confidence_score", np.nan)) * 100.0
-        omega = float(row.get("omega", np.nan))
         title = row.get("rationale_short", row.get("assets", "View"))
+        status = str(row.get("status", ""))
+        approval = str(row.get("approval_status", ""))
+        reason = str(row.get("block_rule", "") or row.get("block_reason", "") or row.get("risks", ""))
         cards.append(
-            f'<div class="cio-view-card"><div class="mini-label">{esc(row.get("view_type", "view"))}</div>'
+            f'<div class="cio-view-card"><div class="mini-label">{esc(title_prefix)} | {esc(row.get("view_type", "view"))}</div>'
             f'<div class="cio-view-title">{esc(title)}</div>'
             f'<div class="cio-view-stats">'
             f'<div class="cio-view-stat"><span>q</span><strong>{signed_pct(q_pct)}</strong></div>'
+            f'<div class="cio-view-stat"><span>View SD</span><strong>{plain_pct(view_sd_pct)}</strong></div>'
+            f'<div class="cio-view-stat"><span>q/SD</span><strong>{q_z:.2f}</strong></div>'
             f'<div class="cio-view-stat"><span>Conf</span><strong>{plain_pct(confidence_pct)}</strong></div>'
-            f'<div class="cio-view-stat"><span>Omega</span><strong>{omega:.4f}</strong></div>'
-            f'</div><div class="cio-view-rationale">{esc(row.get("risks", ""))}</div></div>'
+            f'<div class="cio-view-stat"><span>Status</span><strong>{esc(status)}</strong></div>'
+            f'<div class="cio-view-stat"><span>Approval</span><strong>{esc(approval)}</strong></div>'
+            f'</div><div class="cio-view-rationale">{esc(reason)}</div></div>'
         )
     st.markdown(f'<div class="cio-view-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def sparse_p_rows(views: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    if views.empty or "p_vector_json" not in views:
+        return pd.DataFrame(columns=["view_id", "asset", "weight"])
+    for _, view in views.iterrows():
+        try:
+            sparse = json.loads(str(view.get("p_vector_json", "{}") or "{}"))
+        except json.JSONDecodeError:
+            sparse = {}
+        for asset, weight in sparse.items():
+            rows.append(
+                {
+                    "view_id": view.get("view_id", ""),
+                    "assets": view.get("assets", ""),
+                    "asset": asset,
+                    "p_weight": float(weight),
+                    "row_sum": float(sum(float(v) for v in sparse.values())),
+                    "p_l1_norm": float(view.get("p_l1_norm", np.nan)),
+                    "status": view.get("status", ""),
+                    "model_status": view.get("model_status", ""),
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def last_completed_month_end(now: pd.Timestamp | None = None) -> pd.Timestamp:
@@ -2027,7 +2064,10 @@ if active_view == "CIO Views":
     bl_view_diagnostics = bl_bundle["view_diagnostics"].copy()
     bl_as_of = pd.to_datetime(bl_bundle.get("as_of"), errors="coerce")
     config_audit = bl_bundle["config_audit"].copy()
+    bl_settings = load_bl_settings(CONFIG)
+    benchmark_table = load_benchmark_weights(CONFIG)
     candidate_count = int(bl_views["status"].eq("Candidate").sum()) if not bl_views.empty and "status" in bl_views else 0
+    model_candidate_count = int(bl_views["model_status"].eq("Candidate").sum()) if not bl_views.empty and "model_status" in bl_views else candidate_count
     needs_review_count = int(bl_views["status"].eq("Needs Review").sum()) if not bl_views.empty and "status" in bl_views else 0
     blocked_count = int(bl_views["status"].eq("Blocked").sum()) if not bl_views.empty and "status" in bl_views else 0
     config_failures = int(config_audit["status"].eq("Fail").sum()) if not config_audit.empty and "status" in config_audit else 0
@@ -2035,6 +2075,14 @@ if active_view == "CIO Views":
     stale_bl = pd.notna(expected_month) and pd.notna(bl_as_of) and pd.Timestamp(bl_as_of).date() != pd.Timestamp(expected_month).date()
     transmission_flags = bl_view_diagnostics["transmission_flag"].value_counts().to_dict() if not bl_view_diagnostics.empty and "transmission_flag" in bl_view_diagnostics else {}
     opposite_transmissions = int(transmission_flags.get("Opposite", 0))
+    macro_mode = str(bl_settings.get("macro_data_mode", "latest_revised"))
+    macro_is_pit = macro_mode.strip().lower() in {"point_in_time", "pit", "real_time_vintage"}
+    placeholder_benchmarks = sorted(
+        benchmark_table.loc[benchmark_table.get("is_placeholder", pd.Series(dtype=bool)).map(lambda x: str(x).strip().lower() in {"true", "1", "yes", "y"}), "benchmark_id"]
+        .astype(str)
+        .unique()
+        .tolist()
+    ) if not benchmark_table.empty and "is_placeholder" in benchmark_table else []
     bl_status = (
         "Ready"
         if candidate_count > 0 and config_failures == 0 and config_reviews == 0 and opposite_transmissions == 0 and not stale_bl
@@ -2042,12 +2090,30 @@ if active_view == "CIO Views":
     )
     render_status_grid(
         [
-            {"label": "BL status", "value": bl_status, "detail": f"{candidate_count} exported views", "tone": "good" if bl_status == "Ready" else "warn"},
+            {"label": "BL status", "value": bl_status, "detail": f"{candidate_count} exported / {model_candidate_count} model candidates", "tone": "good" if bl_status == "Ready" else "warn"},
             {"label": "As of", "value": bl_as_of.strftime("%b %Y") if pd.notna(bl_as_of) else "n/a", "detail": f"{bl_bundle['source']} artifacts", "tone": "info"},
             {"label": "Matrix", "value": f"{len(bl_P)} x {len(bl_bundle['asset_order'])}", "detail": f"P rows x assets | Sigma {len(bl_Sigma)} x {len(bl_Sigma.columns)}", "tone": "info"},
             {"label": "Review queue", "value": f"{needs_review_count} / {blocked_count}", "detail": "Needs Review / Blocked", "tone": "warn" if needs_review_count or blocked_count else "good"},
             {"label": "Horizon", "value": f"{int(bl_bundle['horizon_months'])}m", "detail": "Horizon-scaled units", "tone": "info"},
             {"label": "BL audit flags", "value": f"{config_reviews} / {opposite_transmissions}", "detail": "Config review / opposite pull", "tone": "warn" if config_reviews or opposite_transmissions else "good"},
+        ]
+    )
+    render_status_grid(
+        [
+            {
+                "label": "Production gate",
+                "value": "Not cleared" if not macro_is_pit or placeholder_benchmarks or candidate_count == 0 else "CIO review",
+                "detail": "Hard gates protect P/q/Omega export",
+                "tone": "warn" if not macro_is_pit or placeholder_benchmarks or candidate_count == 0 else "good",
+            },
+            {"label": "Macro data", "value": macro_mode, "detail": "Point-in-time required for export", "tone": "good" if macro_is_pit else "warn"},
+            {
+                "label": "Benchmarks",
+                "value": "Placeholder" if placeholder_benchmarks else "Approved",
+                "detail": ", ".join(placeholder_benchmarks[:3]) if placeholder_benchmarks else "No sample weights flagged",
+                "tone": "warn" if placeholder_benchmarks else "good",
+            },
+            {"label": "Approval", "value": "None", "detail": "Candidate is not CIO approved", "tone": "warn"},
         ]
     )
     if stale_bl:
@@ -2141,6 +2207,10 @@ if active_view == "CIO Views":
             "horizon_months",
             "p_vector_json",
             "q_expected_return",
+            "view_error_sd",
+            "q_over_view_sd",
+            "q_minus_1sd",
+            "q_plus_1sd",
             "q_return_basis",
             "confidence_score",
             "omega",
@@ -2148,15 +2218,64 @@ if active_view == "CIO Views":
             "rationale_short",
             "risks",
             "status",
+            "model_status",
+            "approval_status",
         ]
         formal = bl_views[bl_views["status"].eq("Candidate")].copy()
         formal["q_pct"] = pd.to_numeric(formal["q_expected_return"], errors="coerce") * 100.0
+        formal["view_sd_pct"] = pd.to_numeric(formal.get("view_error_sd", np.nan), errors="coerce") * 100.0
         formal["confidence_pct"] = pd.to_numeric(formal["confidence_score"], errors="coerce") * 100.0
         display_cols = [col for col in formal_cols if col in formal.columns]
         st.dataframe(
-            format_pct_columns(formal[display_cols + ["q_pct", "confidence_pct"]], ["q_pct", "confidence_pct", "omega"]),
+            format_pct_columns(formal[display_cols + ["q_pct", "view_sd_pct", "confidence_pct"]], ["q_pct", "view_sd_pct", "confidence_pct", "omega"]),
             width="stretch",
         )
+
+    with st.expander("Model Candidate review queue", expanded=True):
+        model_candidates = bl_views[bl_views.get("model_status", pd.Series(dtype=str)).eq("Candidate")].copy() if not bl_views.empty and "model_status" in bl_views else bl_views[bl_views["status"].eq("Candidate")].copy()
+        if model_candidates.empty:
+            st.info("No model-level Candidate views passed materiality, confidence, and q/SD checks.")
+        else:
+            for source_col, target_col in [
+                ("q_expected_return", "q_pct"),
+                ("view_error_sd", "view_sd_pct"),
+                ("q_minus_1sd", "q_minus_1sd_pct"),
+                ("q_plus_1sd", "q_plus_1sd_pct"),
+                ("confidence_score", "confidence_pct"),
+            ]:
+                model_candidates[target_col] = pd.to_numeric(model_candidates[source_col], errors="coerce") * 100.0
+            model_candidates["abs_q_over_sd"] = pd.to_numeric(model_candidates["q_over_view_sd"], errors="coerce").abs()
+            model_candidates = model_candidates.sort_values(["abs_q_over_sd", "confidence_score"], ascending=[False, False])
+            st.dataframe(
+                format_pct_columns(
+                    model_candidates[
+                        [
+                            "view_id",
+                            "assets",
+                            "view_type",
+                            "q_pct",
+                            "view_sd_pct",
+                            "q_over_view_sd",
+                            "q_minus_1sd_pct",
+                            "q_plus_1sd_pct",
+                            "confidence_pct",
+                            "status",
+                            "approval_status",
+                            "block_rule",
+                            "block_reason",
+                        ]
+                    ],
+                    ["q_pct", "view_sd_pct", "q_minus_1sd_pct", "q_plus_1sd_pct", "confidence_pct"],
+                ),
+                width="stretch",
+            )
+
+    with st.expander("Sparse P-row audit", expanded=False):
+        sparse = sparse_p_rows(bl_views[bl_views.get("model_status", pd.Series(dtype=str)).eq("Candidate")]) if not bl_views.empty and "model_status" in bl_views else sparse_p_rows(bl_views)
+        if sparse.empty:
+            st.info("No model Candidate P rows to display.")
+        else:
+            st.dataframe(format_pct_columns(sparse, ["p_weight", "row_sum", "p_l1_norm"]), width="stretch")
 
     with st.expander("View transmission diagnostics", expanded=False):
         if bl_view_diagnostics.empty:
@@ -2202,14 +2321,43 @@ if active_view == "CIO Views":
             st.success("No blocked or review views in the current BL run.")
         else:
             review["q_pct"] = pd.to_numeric(review["q_expected_return"], errors="coerce") * 100.0
+            review["view_sd_pct"] = pd.to_numeric(review.get("view_error_sd", np.nan), errors="coerce") * 100.0
             review["confidence_pct"] = pd.to_numeric(review["confidence_score"], errors="coerce") * 100.0
             st.dataframe(
                 format_pct_columns(
-                    review[["view_id", "view_type", "assets", "q_pct", "confidence_pct", "omega", "status", "block_reason"]],
-                    ["q_pct", "confidence_pct", "omega"],
+                    review[["view_id", "view_type", "assets", "q_pct", "view_sd_pct", "q_over_view_sd", "confidence_pct", "omega", "status", "model_status", "block_rule", "block_reason"]],
+                    ["q_pct", "view_sd_pct", "confidence_pct", "omega"],
                 ),
                 width="stretch",
             )
+
+    with st.expander("Benchmark validation", expanded=False):
+        benchmark_display = benchmark_table.copy()
+        if benchmark_display.empty:
+            st.error("No benchmark weight file is available.")
+        else:
+            benchmark_display["weight_pct"] = pd.to_numeric(benchmark_display["weight"], errors="coerce") * 100.0
+            sums = benchmark_display.groupby("benchmark_id", as_index=False)["weight"].sum().rename(columns={"weight": "weight_sum"})
+            st.markdown("**Benchmark weight summary**")
+            st.dataframe(sums, width="stretch")
+            st.markdown("**Benchmark constituents**")
+            st.dataframe(
+                format_pct_columns(
+                    benchmark_display[["benchmark_id", "as_of", "ticker", "weight_pct", "source", "is_placeholder", "notes"]],
+                    ["weight_pct"],
+                ),
+                width="stretch",
+            )
+
+    with st.expander("Point-in-time data status", expanded=False):
+        st.markdown(
+            f"""
+            - Macro data mode: `{macro_mode}`.
+            - Candidate export requires `point_in_time` or `real_time_vintage` macro data.
+            - Current public proxy data uses latest revised values and a one-month feature lag, so generated views remain research review objects.
+            - To clear this gate, replace the macro factor inputs with release-date-aware vintages and set `macro_data_mode=point_in_time` in `config/bl_settings.csv`.
+            """
+        )
 
     with st.expander("BL run and contract audit", expanded=False):
         left, right = st.columns([1, 1])

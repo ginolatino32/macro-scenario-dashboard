@@ -146,6 +146,56 @@ def test_black_litterman_zero_view_and_omega_sanity() -> None:
     assert high_pi.shape == (3, 2)
 
 
+def test_black_litterman_row_scaling_invariance() -> None:
+    idx = pd.date_range("2020-01-31", periods=84, freq="ME")
+    prices = pd.DataFrame(
+        {
+            "SPY": 100.0 * np.linspace(1.0, 1.4, len(idx)),
+            "XLE": 90.0 * np.linspace(1.0, 1.5, len(idx)),
+            "XLY": 95.0 * np.linspace(1.0, 1.3, len(idx)),
+        },
+        index=idx,
+    )
+    asset_master = pd.DataFrame(
+        {
+            "ticker": ["SPY", "XLE", "XLY"],
+            "asset_name": ["SPY", "XLE", "XLY"],
+            "sleeve": ["Equity", "Equity", "Equity"],
+        }
+    )
+    benchmark_weights = pd.DataFrame(
+        {
+            "benchmark_id": ["SPY_BENCH"],
+            "as_of": [pd.Timestamp("2026-03-31")],
+            "ticker": ["SPY"],
+            "weight": [1.0],
+        }
+    )
+    settings = {
+        "horizon_months": 6,
+        "policy_benchmark_id": "SPY_BENCH",
+        "covariance_lookback_months": 60,
+        "covariance_shrinkage": 0.2,
+        "tau": 0.05,
+        "risk_aversion_delta": 2.5,
+        "covariance_method": "shrunk_sample",
+        "return_basis": "simple_excess_return",
+    }
+    asset_order = ["SPY", "XLE", "XLY"]
+    P = pd.DataFrame([[0.0, 1.0, -1.0]], index=["rel"], columns=asset_order)
+    q = pd.DataFrame([{"view_id": "rel", "q_expected_return": 0.05}])
+    Omega = pd.DataFrame([[0.01]], index=["rel"], columns=["rel"])
+    _, base_post, _, _ = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, P, q, Omega, settings, idx[-1])
+
+    scale = 3.0
+    scaled_P = P * scale
+    scaled_q = q.copy()
+    scaled_q["q_expected_return"] *= scale
+    scaled_Omega = Omega * scale**2
+    _, scaled_post, _, _ = run_black_litterman(prices, asset_master, benchmark_weights, asset_order, scaled_P, scaled_q, scaled_Omega, settings, idx[-1])
+    np.testing.assert_allclose(base_post["posterior_return"], scaled_post["posterior_return"], rtol=1e-8, atol=1e-10)
+
+
 def test_view_diagnostics_report_bl_transmission() -> None:
     views = pd.DataFrame(
         [
@@ -205,6 +255,7 @@ def test_generated_exports_round_trip_contract() -> None:
     assert "view_diagnostics" in payload
     assert "Sigma" in payload
     assert "pi" in payload
+    assert not candidates.get("assets", pd.Series(dtype=str)).astype(str).str.contains("GSMIF_SAMPLE_POLICY").any()
 
 
 def test_config_contract_loads_and_weights_sum_to_one() -> None:
@@ -224,3 +275,11 @@ def test_config_contract_loads_and_weights_sum_to_one() -> None:
         pd.Timestamp("2026-04-30"),
     )
     assert "Review" in set(audit["status"])
+
+
+def test_production_gates_block_placeholder_model_candidates() -> None:
+    views = pd.read_csv(ROOT / "data" / "bl_macro_views.csv")
+    model_candidates = views[views["model_status"].eq("Candidate")]
+    assert not model_candidates.empty
+    assert (model_candidates["status"] != "Candidate").all()
+    assert set(model_candidates["block_rule"]).issubset({"placeholder_benchmark", "non_point_in_time_macro_data"})

@@ -28,3 +28,7 @@ validation_stride_months,3,Step size for walk-forward model validation to keep a
 max_validation_points,72,Maximum validation predictions per asset
 max_views_per_run,10,Maximum Candidate views exported into P/q/Omega
 view_expiry_months,1,Automatic view expiry after the as_of month
+macro_data_mode,latest_revised,Current public macro proxy mode; not point-in-time vintage data
+block_non_point_in_time_macro,TRUE,Block Candidate export unless macro_data_mode is point_in_time / real_time_vintage
+block_placeholder_benchmark,TRUE,Block Candidate export when the benchmark weights are marked placeholder/sample
+min_view_z_abs,0.50,Minimum absolute q divided by view-error SD for model Candidate status
