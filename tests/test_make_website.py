@@ -21,12 +21,19 @@ def test_season_definitions_precede_portfolio_summary() -> None:
     assert "e.g. 2001-02, 2008, 2020" in page
 
 
-def test_execution_section_explains_bil_netting() -> None:
+def test_public_page_omits_internal_monitoring_and_bil_note() -> None:
     page = _page()
 
-    assert "Why BIL is absent" in page
-    assert "negative-carry round trip" in page
-    assert "financing netting" in page
+    assert "Live monitor" not in page
+    assert "First live return" not in page
+    assert "confidence gap" not in page
+    assert "live-monitor definition" not in page
+    assert "Current monitor status" not in page
+    assert "Why BIL is absent" not in page
+    assert "negative-carry round trip" not in page
+    assert "financing netting" not in page
+    assert "Input freshness" in page
+    assert "ALFRED vintages" in page
     assert "Two strategies, reported separately" not in page
 
 

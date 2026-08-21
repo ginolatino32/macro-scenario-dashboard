@@ -84,7 +84,6 @@ def load_data() -> dict[str, object]:
         EXPORTS / "macro_seasons_v4_season_timeline.csv", parse_dates=["date"]
     ).set_index("date")
     summary = pd.read_csv(EXPORTS / "macro_seasons_v4_summary.csv").set_index("series")
-    monitor = pd.read_csv(EXPORTS / "macro_seasons_v4_monitor.csv")
     allocation = pd.read_csv(EXPORTS / "macro_seasons_v4_current_allocation.csv")
     audit = pd.read_csv(ROOT / "data" / "macro_seasons_v4_data_audit.csv")
     ensemble_state = pd.read_csv(EXPORTS / "macro_seasons_v4_current_ensemble_state.csv")
@@ -111,7 +110,6 @@ def load_data() -> dict[str, object]:
         "ensemble": ensemble,
         "timeline": timeline,
         "summary": summary,
-        "monitor": monitor,
         "allocation": allocation,
         "audit": audit,
         "ensemble_state": ensemble_state,
@@ -258,7 +256,6 @@ def metric_block(title: str, row: pd.Series, accent: str) -> str:
 def build_page(data: dict[str, pd.DataFrame]) -> str:
     long_only, ensemble = data["long_only"], data["ensemble"]
     timeline, summary = data["timeline"], data["summary"]
-    monitor = data["monitor"]
     allocation = data["allocation"].sort_values("weight_pct", ascending=False)
     audit = data["audit"]
     ensemble_state = data["ensemble_state"].iloc[0]
@@ -281,18 +278,6 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     effective_month = pd.Timestamp(allocation["effective_month"].iloc[0]).strftime("%B %Y")
     modal = str(latest["modal_season"])
     years = float(long_stats["months"]) / 12.0
-
-    statuses = monitor["status"].astype(str)
-    if statuses.str.startswith("PENDING").all():
-        monitor_label, monitor_class = "Pending", "pending"
-        first_live = pd.Timestamp(monitor["first_live_return_date"].iloc[0]).strftime("%B %d, %Y")
-        monitor_detail = f"first post-freeze return due {first_live}"
-    elif statuses.eq("OK").all():
-        monitor_label, monitor_class = "On track", "ok"
-        monitor_detail = f"{int(monitor['completed_live_months'].min())} completed live months"
-    else:
-        monitor_label, monitor_class = "Review", "review"
-        monitor_detail = "at least one frozen monitoring limit was breached"
 
     audit_pass = int(audit["status"].eq("PASS").sum())
     audit_total = int(len(audit))
@@ -320,9 +305,6 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
             f"<div class='bar'><i class='{category}' style='width:{float(row.weight_pct)/max_weight*100:.1f}%'></i></div>"
             f"<div class='weight'>{float(row.weight_pct):.2f}%</div></div>"
         )
-    long_only_bil_weight = float(
-        allocation.loc[allocation["ticker"].eq("BIL"), "weight_pct"].sum()
-    )
     core_weight = float(ensemble_state["weight_seasons_core_lev"]) * 100.0
     long_weight = float(ensemble_state["weight_long_only_lev"]) * 100.0
     tsmom_weight = float(ensemble_state["weight_tsmom"]) * 100.0
@@ -335,8 +317,6 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     margin_debit = float(execution_meta["margin_debit_weight"]) * 100.0
     short_collateral = float(execution_meta["short_collateral_weight"]) * 100.0
     regt_reference_buffer = float(execution_meta["regt_reference_buffer"]) * 100.0
-    netted_bil_weight = float(execution_meta["netted_bil_weight"]) * 100.0
-
     execution_rows: list[str] = []
     for row in execution_positions.sort_values("target_weight", ascending=False).itertuples():
         ticker = str(row.ticker)
@@ -437,18 +417,17 @@ nav{{display:flex;align-items:center;justify-content:space-between;gap:20px;padd
 section{{padding:30px 0;border-bottom:1px solid var(--line)}}h2{{margin:0;color:var(--ink);font-size:18px;font-weight:720}}.sub{{margin:4px 0 18px;color:var(--muted);font-size:12.5px}}.section-head{{display:flex;justify-content:space-between;align-items:end;gap:16px}}
 .tracks{{display:grid;grid-template-columns:1fr 1fr;gap:14px}}.track{{display:grid;grid-template-columns:1.5fr repeat(4,.7fr);gap:12px;align-items:center;padding:16px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;background:var(--surface)}}.track-title{{color:var(--ink);font-weight:680}}.metric span{{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}}.metric b{{display:block;color:var(--ink);font-size:16px;font-variant-numeric:tabular-nums}}
 .definitions{{display:grid;grid-template-columns:1fr 1fr;gap:0 30px}}.season-row{{display:grid;grid-template-columns:72px 1.25fr 1fr;gap:12px;padding:13px 0;border-bottom:1px solid var(--line);font-size:12px}}.season-row:nth-last-child(-n+2){{border-bottom:0}}.season-name{{font-weight:760}}.season-row b{{display:block;color:var(--ink);font-weight:650}}.season-row span{{display:block;color:var(--muted);margin-top:2px}}
-.integrity{{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}}.integrity div{{background:var(--surface);padding:15px}}.integrity span{{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}}.integrity b{{display:block;color:var(--ink);font-size:15px;margin-top:3px}}.pending{{color:var(--gold)!important}}.ok{{color:var(--green)!important}}.review{{color:#e36d56!important}}
+.integrity{{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}}.integrity div{{background:var(--surface);padding:15px}}.integrity span{{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}}.integrity b{{display:block;color:var(--ink);font-size:15px;margin-top:3px}}
 .portfolio-note{{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:18px 0 22px}}.portfolio-note h3{{margin:0 0 4px;color:var(--ink);font-size:13px}}.portfolio-note p{{margin:0;color:var(--muted);font-size:12px}}
 .legend{{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;color:var(--muted);font-size:11px}}.legend i{{display:inline-block;width:17px;border-top:2px solid;margin-right:6px;vertical-align:middle}}.legend .dash{{border-top-style:dashed}}svg{{display:block;width:100%;height:auto}}.gridline{{stroke:rgba(255,255,255,.065)}}.axis{{fill:#77818f;font-size:10px}}.season-key{{display:flex;gap:14px;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}.season-key i{{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}}.tip{{position:absolute;display:none;pointer-events:none;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:#090c10;color:var(--text);font-size:11px;white-space:nowrap;z-index:2}}.chart-wrap{{position:relative}}
 .allocation-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 38px}}.allocation-row{{display:grid;grid-template-columns:142px 1fr 62px;gap:10px;align-items:center;padding:6px 0}}.asset b{{display:block;color:var(--ink);font-size:12px}}.asset span{{display:block;color:var(--muted);font-size:10px}}.bar{{height:8px;background:#090c10;border:1px solid rgba(255,255,255,.05);overflow:hidden}}.bar i{{display:block;height:100%}}.bar .risk{{background:var(--green)}}.bar .defensive{{background:#6485b6}}.weight{{text-align:right;color:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}}
 .exec-summary{{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;margin:15px 0 20px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}}.exec-summary div{{background:var(--surface);padding:14px}}.exec-summary span,.cost-item span{{display:block;color:var(--muted);font-size:9.5px;text-transform:uppercase}}.exec-summary b,.cost-item b{{display:block;color:var(--ink);font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}}.exec-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 34px}}.exec-row{{display:grid;grid-template-columns:1fr 58px 65px;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.045)}}.exec-row div b{{display:block;color:var(--ink);font-size:11.5px}}.exec-row div span{{display:block;color:var(--muted);font-size:9.5px}}.exec-row strong{{text-align:right;color:var(--ink);font-size:11.5px;font-variant-numeric:tabular-nums}}.side{{font-size:8.5px;font-weight:750;text-align:center;padding:2px 4px;border:1px solid var(--line);border-radius:3px}}.side.long{{color:#65c99a}}.side.short,.side.borrow{{color:#eb846c}}.side.cash{{color:#82a9df}}.cost-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 4px}}.cost-item{{padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--surface2)}}.cost-item small{{display:block;color:var(--muted);font-size:9.5px;margin-top:2px}}td.long{{color:#65c99a}}td.short{{color:#eb846c}}
-.netting-note{{display:grid;grid-template-columns:150px 1fr;gap:20px;margin:-4px 0 18px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}}.netting-note b{{color:var(--ink);font-size:12px}}.netting-note p{{margin:0;color:var(--muted);font-size:11.5px}}
 .table-wrap{{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:6px}}table{{width:100%;border-collapse:collapse;font-size:10.5px;font-variant-numeric:tabular-nums}}th{{position:sticky;top:0;background:var(--surface);color:var(--muted);font-size:9.5px;text-align:right;padding:5px;border-bottom:1px solid var(--line)}}th:first-child,td:first-child{{text-align:left}}td{{padding:4px 5px;text-align:right;color:var(--ink);border-bottom:1px solid rgba(255,255,255,.035)}}td:first-child{{color:var(--text);font-weight:650}}td.ytd{{border-left:1px solid var(--line);font-weight:700}}td.spy{{color:var(--muted)}}td.na{{color:#3e4652}}
 .returns-head{{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:14px}}.segmented{{display:inline-grid;grid-template-columns:1fr 1fr;padding:3px;border:1px solid var(--line);border-radius:6px;background:var(--surface2)}}.segmented button{{min-width:104px;border:0;border-radius:4px;padding:7px 11px;background:transparent;color:var(--muted);font:600 11px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}}.segmented button.selected{{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}}.return-panel[hidden]{{display:none}}
 details{{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}}summary{{cursor:pointer;color:var(--text);font-size:12px}}details p{{max-width:880px;color:var(--muted);font-size:11.5px}}
 footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}a{{color:var(--text)}}
 @media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid,.exec-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.exec-summary{{grid-template-columns:1fr 1fr}}.cost-grid{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
-@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}.netting-note{{grid-template-columns:1fr;gap:4px}}.returns-head{{align-items:stretch;flex-direction:column}}.segmented{{width:100%}}.segmented button{{min-width:0}}}}
+@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}.returns-head{{align-items:stretch;flex-direction:column}}.segmented{{width:100%}}.segmented button{{min-width:0}}}}
 </style></head><body><main>
 <nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}</div></nav>
 
@@ -456,7 +435,7 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <p class='lede'>The point-in-time growth, inflation and liquidity readings produce a broad probability mix. The model therefore blends all four season portfolios instead of treating the modal label as a certain forecast.</p>
 <div class='chips'>{chips}</div></div>
 <div class='current'><div class='current-label'>{effective_month} long-only positioning</div><div class='current-season'>{modal.title()}</div>
-<p>Current emphasis: {SEASON_GUIDANCE[modal]}.</p><small>Signal date {as_of:%B %d, %Y} &middot; confidence gap {float(latest['confidence']):.1%}</small></div></div>
+<p>Current emphasis: {SEASON_GUIDANCE[modal]}.</p><small>Signal date {as_of:%B %d, %Y}</small></div></div>
 
 <section><h2>How the seasons are defined</h2><p class='sub'>Growth and inflation define the four quadrants. Liquidity affects probabilities and risk intensity; it does not silently redefine the labels. Historical examples are illustrative episodes, not training labels.</p><div class='definitions'>{season_rows}</div>
 <details><summary>Signals and source data</summary><p><b>Growth:</b> point-in-time industrial production, payrolls and jobless claims, confirmed by market growth/risk proxies. <b>Inflation:</b> point-in-time CPI, breakevens and oil. <b>Liquidity:</b> point-in-time M2 plus Fed liquidity, financial conditions and credit spreads. Monthly macro series use FRED/ALFRED release vintages; ETF prices come from Yahoo Finance. Each pillar uses trailing transformations calculated only with observations available on that decision date.</p></details></section>
@@ -465,8 +444,8 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='tracks'>{metric_block('Long-only season portfolio', long_stats, LONG_ONLY_COLOR)}{metric_block('L/S portfolio', ensemble_stats, ENSEMBLE_COLOR)}</div>
 <div class='portfolio-note'><div><h3>Long-only season portfolio</h3><p>The exact investable ETF mix shown below. It blends the four season allocations, then applies real-rate, credit, momentum, trend and volatility controls. Weights sum to 100%.</p></div>
 <div><h3>L/S portfolio</h3><p>A separate strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% long/short trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its physical, costed IBKR implementation is reported separately below.</p></div></div>
-<div class='integrity'><div><span>Input freshness</span><b>{audit_pass}/{audit_total} PASS</b></div><div><span>ALFRED vintages</span><b>{alfred_pass}/4 PASS</b></div><div><span>Live monitor</span><b class='{monitor_class}'>{monitor_label}</b></div><div><span>First live return</span><b>Sep 30, 2026</b></div></div>
-<details><summary>Data integrity and live-monitor definition</summary><p>V4 refreshes every FRED and Yahoo cache before each monthly run. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage actually available at each historical month-end. The model was frozen on August 20, 2026; the August 31 decision is the first fully post-freeze signal and its September 30 realized return is the first live observation. Current monitor status: {html.escape(monitor_detail)}.</p></details></section>
+<div class='integrity'><div><span>Input freshness</span><b>{audit_pass}/{audit_total} PASS</b></div><div><span>ALFRED vintages</span><b>{alfred_pass}/4 PASS</b></div></div>
+<details><summary>Data integrity</summary><p>V4 refreshes every FRED and Yahoo cache before each monthly run. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage available at each historical month-end.</p></details></section>
 
 <section><h2>Growth of $1</h2><p class='sub'>Log scale &middot; historical point-in-time simulation after modeled trading costs</p><div class='legend'><span><i style='border-color:{ENSEMBLE_COLOR}'></i>L/S portfolio</span><span><i style='border-color:{LONG_ONLY_COLOR}'></i>Long-only season portfolio</span><span><i style='border-color:{SPY_COLOR}'></i>S&amp;P 500</span><span><i class='dash' style='border-color:{B6040_COLOR}'></i>60/40</span></div>
 <div class='chart-wrap'>{svg}<div class='tip' id='eqtip'></div></div><div class='season-key'><span><i style='background:{SEASON_COLORS['SPRING']}'></i>Spring</span><span><i style='background:{SEASON_COLORS['SUMMER']}'></i>Summer</span><span><i style='background:{SEASON_COLORS['FALL']}'></i>Fall</span><span><i style='background:{SEASON_COLORS['WINTER']}'></i>Winter</span></div>
@@ -476,7 +455,6 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 
 <section id='execution' data-allocation='ls'><h2>L/S allocation for {effective_month}</h2>
 <div class='exec-summary'><div><span>Gross exposure</span><b>{gross_exposure:.1f}%</b></div><div><span>Net exposure</span><b>{net_exposure:.1f}%</b></div><div><span>Gross shorts</span><b>{short_exposure:.1f}%</b></div><div><span>Economic cash / borrow</span><b>{cash_weight:+.1f}%</b></div><div><span>Margin debit</span><b>{margin_debit:.1f}%</b></div><div><span>Short collateral</span><b>{short_collateral:.1f}%</b></div></div>
-<div class='netting-note'><b>Why BIL is absent</b><p>BIL remains {long_only_bil_weight:.1f}% of the separate long-only portfolio. In the aggregated L/S book, {netted_bil_weight:.1f}% of raw BIL exposure is sold first and used to reduce the margin debit. Holding BIL while borrowing at IBKR's higher margin rate would be a negative-carry round trip. This is financing netting, not a change to the Summer season allocation.</p></div>
 <div class='exec-grid'>{''.join(execution_rows)}</div>
 <div class='cost-grid'><div class='cost-item'><span>Costed CAGR</span><b>{execution_stats['cagr_pct']:.2f}%</b><small>2008&ndash;2026 executable window</small></div><div class='cost-item'><span>Trading</span><b>{trading_bps:.1f} bp/yr</b><small>commission, regulatory fees and 1 bp slippage</small></div><div class='cost-item'><span>Margin financing</span><b>{financing_bps:.1f} bp/yr</b><small>benchmark plus IBKR tiers</small></div><div class='cost-item'><span>Net short carry</span><b>{short_net_bps:.1f} bp/yr</b><small>{borrow_bps:.1f} borrow less {short_credit_bps:.1f} proceeds credit</small></div></div>
 <p class='sub'>IBKR segregates short-sale proceeds. The {cash_weight:+.1f}% economic cash balance therefore consists of a {margin_debit:.1f}% margin debit and {short_collateral:.1f}% of marked short collateral. The simulation assumes Portfolio Margin. The {regt_reference_buffer:.1f}% Reg T-equivalent buffer is shown for reference; the full allocation still has to pass IBKR's live Check Margin with at least a 20% projected cushion. Over 2008&ndash;2026, the return-level L/S series earned {execution_window_stats['cagr_pct']:.2f}%. The holdings-based simulation earned {execution_summary.loc['Executable physical accounting before explicit IBKR costs', 'cagr_pct']:.2f}% before IBKR costs and {execution_stats['cagr_pct']:.2f}% after commissions, regulatory fees, slippage, margin interest, stock borrow and interest on short proceeds. After-cost volatility was {execution_stats['ann_vol_pct']:.2f}%, and maximum drawdown was {execution_stats['max_dd_pct']:.2f}%. Futures roll cost is {roll_bps:.1f} bp because the current portfolio holds ETFs, not futures.</p>
