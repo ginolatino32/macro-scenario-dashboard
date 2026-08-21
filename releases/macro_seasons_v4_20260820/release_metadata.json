@@ -1,0 +1,84 @@
+{
+  "allocation_rows": 18,
+  "allocation_weight_sum": 0.9999999999999991,
+  "completed_live_months": 0,
+  "created_at_utc": "2026-08-21T00:50:32+00:00",
+  "current_season": {
+    "FALL": 0.2395575582199972,
+    "SPRING": 0.2546328641679301,
+    "SUMMER": 0.3073254192543532,
+    "WINTER": 0.1984841583577194,
+    "confidence": 0.0087282471935503,
+    "modal": "SUMMER"
+  },
+  "effective_allocation_month": "2026-08",
+  "first_live_as_of": "2026-08-31",
+  "first_live_return_date": "2026-09-30",
+  "freeze_date": "2026-08-20",
+  "frozen_data_end": "2026-07-31",
+  "model_version": "macro_seasons_v4_pit",
+  "release_id": "macro_seasons_v4_20260820",
+  "summary": [
+    {
+      "ann_vol_pct": 8.47,
+      "cagr_pct": 9.21,
+      "calmar": 0.746,
+      "excess_sharpe": 0.823,
+      "max_dd_pct": -12.36,
+      "months": 319,
+      "raw_sharpe": 1.04,
+      "series": "Macro Seasons v4 multi-strategy ensemble"
+    },
+    {
+      "ann_vol_pct": 4.53,
+      "cagr_pct": 5.57,
+      "calmar": 1.016,
+      "excess_sharpe": 0.786,
+      "max_dd_pct": -5.48,
+      "months": 319,
+      "raw_sharpe": 1.194,
+      "series": "Macro Seasons v4 long-only season portfolio"
+    },
+    {
+      "ann_vol_pct": 6.41,
+      "cagr_pct": 6.21,
+      "calmar": 0.558,
+      "excess_sharpe": 0.653,
+      "max_dd_pct": -11.12,
+      "months": 319,
+      "raw_sharpe": 0.94,
+      "series": "Macro Seasons v4 core season allocation"
+    },
+    {
+      "ann_vol_pct": 15.23,
+      "cagr_pct": 8.2,
+      "calmar": 0.161,
+      "excess_sharpe": 0.397,
+      "max_dd_pct": -50.78,
+      "months": 319,
+      "raw_sharpe": 0.517,
+      "series": "SPY"
+    },
+    {
+      "ann_vol_pct": 9.52,
+      "cagr_pct": 6.7,
+      "calmar": 0.207,
+      "excess_sharpe": 0.488,
+      "max_dd_pct": -32.32,
+      "months": 319,
+      "raw_sharpe": 0.681,
+      "series": "60/40 SPY/AGG"
+    },
+    {
+      "ann_vol_pct": 12.23,
+      "cagr_pct": 7.22,
+      "calmar": 0.202,
+      "excess_sharpe": 0.467,
+      "max_dd_pct": -35.76,
+      "months": 222,
+      "raw_sharpe": 0.57,
+      "series": "GSMIF 70/30 VT/BIV"
+    }
+  ],
+  "v3_baseline_commit": "95e51fe1a7ac2ed60b5d91b38b1541d7486f4896"
+}

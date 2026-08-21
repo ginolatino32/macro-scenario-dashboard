@@ -1,0 +1,3 @@
+factor,series_id,point_in_time_available,vintage_source,rows,first_as_of,last_as_of,last_complete_month,api_key_present,error
+rates,DGS2,True,fred_observation_date_daily_proxy_no_revision_vintage,223,2008-01-31,2026-07-31,2026-07-31,True,real-time API unavailable for daily series; used observation-date Treasury yield proxy (HTTPError)
+liquidity,M2SL,True,fred_api_realtime_period,222,2008-02-29,2026-07-31,2026-07-31,True,

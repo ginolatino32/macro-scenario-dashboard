@@ -1,0 +1,7 @@
+series,months,cagr_pct,ann_vol_pct,excess_sharpe,raw_sharpe,max_dd_pct,calmar
+Macro Seasons v4 multi-strategy ensemble,319,9.21,8.47,0.823,1.04,-12.36,0.746
+Macro Seasons v4 long-only season portfolio,319,5.57,4.53,0.786,1.194,-5.48,1.016
+Macro Seasons v4 core season allocation,319,6.21,6.41,0.653,0.94,-11.12,0.558
+SPY,319,8.2,15.23,0.397,0.517,-50.78,0.161
+60/40 SPY/AGG,319,6.7,9.52,0.488,0.681,-32.32,0.207
+GSMIF 70/30 VT/BIV,222,7.22,12.23,0.467,0.57,-35.76,0.202

@@ -1,0 +1,3 @@
+series,freeze_date,first_live_as_of,first_live_return_date,completed_live_months,trailing_12m_live_excess_sharpe,live_drawdown_pct,drawdown_limit_pct,status
+multi-strategy ensemble,2026-08-20,2026-08-31,2026-09-30,0,,,-15.0,PENDING: first post-freeze return due 2026-09-30
+long-only season portfolio,2026-08-20,2026-08-31,2026-09-30,0,,,-8.0,PENDING: first post-freeze return due 2026-09-30
