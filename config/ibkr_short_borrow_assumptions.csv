@@ -1,0 +1,14 @@
+ticker,annual_borrow_bps,assumption_type,notes
+SPY,100,conservative_proxy,Replace with IBKR SLB history before production
+QQQ,100,conservative_proxy,Replace with IBKR SLB history before production
+IWM,100,conservative_proxy,Replace with IBKR SLB history before production
+EFA,100,conservative_proxy,Replace with IBKR SLB history before production
+EEM,100,conservative_proxy,Replace with IBKR SLB history before production
+TLT,100,conservative_proxy,Replace with IBKR SLB history before production
+IEF,100,conservative_proxy,Replace with IBKR SLB history before production
+GLD,100,conservative_proxy,Replace with IBKR SLB history before production
+DBC,100,conservative_proxy,Replace with IBKR SLB history before production
+UUP,100,conservative_proxy,Replace with IBKR SLB history before production
+FXY,100,conservative_proxy,Replace with IBKR SLB history before production
+FXF,100,conservative_proxy,Replace with IBKR SLB history before production
+HYG,100,conservative_proxy,Replace with IBKR SLB history before production

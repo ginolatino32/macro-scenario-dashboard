@@ -1,8 +1,8 @@
-"""Build the static newsixtyforty.com page from frozen Macro Seasons v4 outputs.
+"""Build newsixtyforty.com from frozen V4 and its IBKR execution overlay.
 
 The page deliberately separates the implementable long-only season portfolio
-from the leveraged three-stream research ensemble. All figures are generated
-from the V4 point-in-time export package; no values are hard-coded in the HTML.
+from the leveraged three-stream research ensemble and the costed executable
+overlay. All figures are generated from export artifacts, not hard-coded.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ SEASON_CARDS = [
 ]
 
 
-def load_data() -> dict[str, pd.DataFrame]:
+def load_data() -> dict[str, object]:
     long_only = pd.read_csv(
         EXPORTS / "macro_seasons_v4_long_only_ledger.csv", parse_dates=["return_date"]
     ).set_index("return_date")
@@ -76,6 +76,21 @@ def load_data() -> dict[str, pd.DataFrame]:
     allocation = pd.read_csv(EXPORTS / "macro_seasons_v4_current_allocation.csv")
     audit = pd.read_csv(ROOT / "data" / "macro_seasons_v4_data_audit.csv")
     ensemble_state = pd.read_csv(EXPORTS / "macro_seasons_v4_current_ensemble_state.csv")
+    execution_positions = pd.read_csv(
+        EXPORTS / "macro_seasons_v4_execution_current_positions.csv"
+    )
+    execution_tsmom = pd.read_csv(
+        EXPORTS / "macro_seasons_v4_execution_current_tsmom.csv"
+    )
+    execution_summary = pd.read_csv(
+        EXPORTS / "macro_seasons_v4_execution_summary.csv"
+    ).set_index("series")
+    execution_costs = pd.read_csv(
+        EXPORTS / "macro_seasons_v4_execution_cost_summary.csv"
+    ).set_index("cost_component")
+    execution_manifest = json.loads(
+        (EXPORTS / "macro_seasons_v4_execution_manifest.json").read_text()
+    )
     return {
         "long_only": long_only,
         "ensemble": ensemble,
@@ -85,6 +100,11 @@ def load_data() -> dict[str, pd.DataFrame]:
         "allocation": allocation,
         "audit": audit,
         "ensemble_state": ensemble_state,
+        "execution_positions": execution_positions,
+        "execution_tsmom": execution_tsmom,
+        "execution_summary": execution_summary,
+        "execution_costs": execution_costs,
+        "execution_manifest": execution_manifest,
     }
 
 
@@ -214,9 +234,18 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     allocation = data["allocation"].sort_values("weight_pct", ascending=False)
     audit = data["audit"]
     ensemble_state = data["ensemble_state"].iloc[0]
+    execution_positions = data["execution_positions"].copy()
+    execution_tsmom = data["execution_tsmom"].copy()
+    execution_summary = data["execution_summary"]
+    execution_costs = data["execution_costs"]
+    execution_manifest = data["execution_manifest"]
 
     long_stats = summary.loc["Macro Seasons v4 long-only season portfolio"]
     ensemble_stats = summary.loc["Macro Seasons v4 multi-strategy ensemble"]
+    execution_stats = execution_summary.loc["IBKR-costed executable ensemble"]
+    execution_window_stats = execution_summary.loc[
+        "Frozen return-level ensemble on executable window"
+    ]
     spy_stats, b6040_stats = summary.loc["SPY"], summary.loc["60/40 SPY/AGG"]
     latest = timeline.dropna(subset=["modal_season"]).iloc[-1]
     as_of = timeline.dropna(subset=["modal_season"]).index[-1]
@@ -266,6 +295,51 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     long_weight = float(ensemble_state["weight_long_only_lev"]) * 100.0
     tsmom_weight = float(ensemble_state["weight_tsmom"]) * 100.0
     risk_scale = float(ensemble_state["ensemble_vol_target_scale"])
+    execution_meta = execution_manifest["current_metadata"]
+    gross_exposure = float(execution_meta["gross_exposure"]) * 100.0
+    net_exposure = float(execution_meta["net_exposure"]) * 100.0
+    short_exposure = float(execution_meta["short_gross_exposure"]) * 100.0
+    cash_weight = float(execution_meta["cash_weight"]) * 100.0
+    margin_debit = float(execution_meta["margin_debit_weight"]) * 100.0
+    short_collateral = float(execution_meta["short_collateral_weight"]) * 100.0
+    regt_reference_buffer = float(execution_meta["regt_reference_buffer"]) * 100.0
+
+    execution_rows: list[str] = []
+    for row in execution_positions.sort_values("target_weight", ascending=False).itertuples():
+        ticker = str(row.ticker)
+        name = "USD cash balance" if ticker == "USD_CASH" else TICKER_NAMES.get(ticker, ticker)
+        side_class = "short" if float(row.target_weight) < 0 else "long"
+        if ticker == "USD_CASH":
+            side_class = "borrow" if float(row.target_weight) < 0 else "cash"
+        execution_rows.append(
+            f"<div class='exec-row'><div><b>{html.escape(ticker)}</b><span>{html.escape(name)}</span></div>"
+            f"<span class='side {side_class}'>{html.escape(str(row.side))}</span>"
+            f"<strong>{float(row.target_weight_pct):+.2f}%</strong></div>"
+        )
+
+    tsmom_rows = "".join(
+        f"<tr><td>{html.escape(str(row.ticker))}</td><td class='{str(row.side).lower()}'>{html.escape(str(row.side))}</td>"
+        f"<td>{float(row.excess_12m_return):+.1%}</td><td>{float(row.trailing_36m_vol):.1%}</td>"
+        f"<td>{float(row.sleeve_weight_pct):+.2f}%</td></tr>"
+        for row in execution_tsmom.sort_values("sleeve_weight", ascending=False).itertuples()
+    )
+    tsmom_gross = float(execution_tsmom["sleeve_weight"].abs().sum()) * 100.0
+    tsmom_net = float(execution_tsmom["sleeve_weight"].sum()) * 100.0
+    trading_bps = float(
+        execution_costs.loc[
+            ["commission_cost", "regulatory_fee_cost", "slippage_cost"],
+            "average_annual_bps",
+        ].sum()
+    )
+    financing_bps = float(
+        execution_costs.loc[["margin_benchmark_cost", "margin_spread_cost"], "average_annual_bps"].sum()
+    )
+    borrow_bps = float(execution_costs.loc["short_borrow_cost", "average_annual_bps"])
+    short_credit_bps = -float(
+        execution_costs.loc["short_proceeds_interest_credit", "average_annual_bps"]
+    )
+    short_net_bps = borrow_bps - short_credit_bps
+    roll_bps = float(execution_costs.loc["futures_roll_cost", "average_annual_bps"])
     svg, payload = equity_svg(long_only, ensemble, timeline)
     tbody, average_year = monthly_rows(long_only["strategy_return"], long_only)
     first_year = int(long_only.index.min().year)
@@ -304,11 +378,12 @@ section{{padding:30px 0;border-bottom:1px solid var(--line)}}h2{{margin:0;color:
 .portfolio-note{{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:18px 0 22px}}.portfolio-note h3{{margin:0 0 4px;color:var(--ink);font-size:13px}}.portfolio-note p{{margin:0;color:var(--muted);font-size:12px}}
 .legend{{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;color:var(--muted);font-size:11px}}.legend i{{display:inline-block;width:17px;border-top:2px solid;margin-right:6px;vertical-align:middle}}.legend .dash{{border-top-style:dashed}}svg{{display:block;width:100%;height:auto}}.gridline{{stroke:rgba(255,255,255,.065)}}.axis{{fill:#77818f;font-size:10px}}.season-key{{display:flex;gap:14px;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}.season-key i{{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}}.tip{{position:absolute;display:none;pointer-events:none;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:#090c10;color:var(--text);font-size:11px;white-space:nowrap;z-index:2}}.chart-wrap{{position:relative}}
 .allocation-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 38px}}.allocation-row{{display:grid;grid-template-columns:142px 1fr 62px;gap:10px;align-items:center;padding:6px 0}}.asset b{{display:block;color:var(--ink);font-size:12px}}.asset span{{display:block;color:var(--muted);font-size:10px}}.bar{{height:8px;background:#090c10;border:1px solid rgba(255,255,255,.05);overflow:hidden}}.bar i{{display:block;height:100%}}.bar .risk{{background:var(--green)}}.bar .defensive{{background:#6485b6}}.weight{{text-align:right;color:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}}
+.exec-summary{{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin:15px 0 20px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}}.exec-summary div{{background:var(--surface);padding:14px}}.exec-summary span,.cost-item span{{display:block;color:var(--muted);font-size:9.5px;text-transform:uppercase}}.exec-summary b,.cost-item b{{display:block;color:var(--ink);font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}}.exec-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 34px}}.exec-row{{display:grid;grid-template-columns:1fr 58px 65px;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.045)}}.exec-row div b{{display:block;color:var(--ink);font-size:11.5px}}.exec-row div span{{display:block;color:var(--muted);font-size:9.5px}}.exec-row strong{{text-align:right;color:var(--ink);font-size:11.5px;font-variant-numeric:tabular-nums}}.side{{font-size:8.5px;font-weight:750;text-align:center;padding:2px 4px;border:1px solid var(--line);border-radius:3px}}.side.long{{color:#65c99a}}.side.short,.side.borrow{{color:#eb846c}}.side.cash{{color:#82a9df}}.cost-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 4px}}.cost-item{{padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--surface2)}}.cost-item small{{display:block;color:var(--muted);font-size:9.5px;margin-top:2px}}td.long{{color:#65c99a}}td.short{{color:#eb846c}}
 .table-wrap{{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:6px}}table{{width:100%;border-collapse:collapse;font-size:10.5px;font-variant-numeric:tabular-nums}}th{{position:sticky;top:0;background:var(--surface);color:var(--muted);font-size:9.5px;text-align:right;padding:5px;border-bottom:1px solid var(--line)}}th:first-child,td:first-child{{text-align:left}}td{{padding:4px 5px;text-align:right;color:var(--ink);border-bottom:1px solid rgba(255,255,255,.035)}}td:first-child{{color:var(--text);font-weight:650}}td.ytd{{border-left:1px solid var(--line);font-weight:700}}td.spy{{color:var(--muted)}}td.na{{color:#3e4652}}
 details{{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}}summary{{cursor:pointer;color:var(--text);font-size:12px}}details p{{max-width:880px;color:var(--muted);font-size:11.5px}}
 footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}a{{color:var(--text)}}
-@media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
-@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}}}
+@media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid,.exec-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.exec-summary{{grid-template-columns:1fr 1fr}}.cost-grid{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
+@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}}}
 </style></head><body><main>
 <nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}</div></nav>
 
@@ -318,10 +393,10 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='current'><div class='current-label'>{effective_month} long-only positioning</div><div class='current-season'>{modal.title()}</div>
 <p>Current emphasis: {SEASON_GUIDANCE[modal]}.</p><small>Signal date {as_of:%B %d, %Y} &middot; confidence gap {float(latest['confidence']):.1%}</small></div></div>
 
-<section><div class='section-head'><div><h2>Two portfolios, reported separately</h2><p class='sub'>Historical point-in-time simulation after costs. These are research backtests, not a live record.</p></div><div class='stamp'>{years:.1f} years &middot; monthly</div></div>
+<section><div class='section-head'><div><h2>Two strategies, reported separately</h2><p class='sub'>Historical point-in-time simulation after costs. These are research backtests, not a live record.</p></div><div class='stamp'>{years:.1f} years &middot; monthly</div></div>
 <div class='tracks'>{metric_block('Long-only season portfolio', long_stats, LONG_ONLY_COLOR)}{metric_block('Multi-strategy leveraged ensemble', ensemble_stats, ENSEMBLE_COLOR)}</div>
 <div class='portfolio-note'><div><h3>Long-only season portfolio</h3><p>The exact investable ETF mix shown below. It blends the four season allocations, then applies real-rate, credit, momentum, trend and volatility controls. Weights sum to 100%.</p></div>
-<div><h3>Leveraged ensemble</h3><p>A separate research strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its headline return is not the ETF allocation shown below.</p></div></div>
+<div><h3>Leveraged ensemble</h3><p>A separate research strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its physical, costed IBKR implementation is reported separately below.</p></div></div>
 <div class='integrity'><div><span>Input freshness</span><b>{audit_pass}/{audit_total} PASS</b></div><div><span>ALFRED vintages</span><b>{alfred_pass}/4 PASS</b></div><div><span>Live monitor</span><b class='{monitor_class}'>{monitor_label}</b></div><div><span>First live return</span><b>Sep 30, 2026</b></div></div>
 <details><summary>Data integrity and live-monitor definition</summary><p>V4 refreshes every FRED and Yahoo cache before each monthly run. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage actually available at each historical month-end. The model was frozen on August 20, 2026; the August 31 decision is the first fully post-freeze signal and its September 30 realized return is the first live observation. Current monitor status: {html.escape(monitor_detail)}.</p></details></section>
 
@@ -333,6 +408,14 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <details><summary>Benchmark results</summary><p>S&amp;P 500: CAGR {spy_stats['cagr_pct']:.1f}%, excess Sharpe {spy_stats['excess_sharpe']:.2f}, max loss {spy_stats['max_dd_pct']:.1f}%. 60/40 SPY/AGG: CAGR {b6040_stats['cagr_pct']:.1f}%, excess Sharpe {b6040_stats['excess_sharpe']:.2f}, max loss {b6040_stats['max_dd_pct']:.1f}%.</p></details></section>
 
 <section><h2>Exact long-only allocation for {effective_month}</h2><p class='sub'>Generated from July month-end signals &middot; {len(allocation)} holdings &middot; {defensive_weight:.1f}% defensive &middot; no hidden consolidation or pro-rata renormalization</p><div class='allocation-grid'>{''.join(allocation_rows)}</div></section>
+
+<section id='execution'><div class='section-head'><div><h2>Executable leveraged portfolio for {effective_month}</h2><p class='sub'>Aggregated and netted ETF positions &middot; USD 1 million reference NAV &middot; IBKR Pro Fixed assumptions</p></div><div class='stamp'>Model target, not a broker order</div></div>
+<div class='exec-summary'><div><span>Gross exposure</span><b>{gross_exposure:.1f}%</b></div><div><span>Net exposure</span><b>{net_exposure:.1f}%</b></div><div><span>Gross shorts</span><b>{short_exposure:.1f}%</b></div><div><span>Economic cash / borrow</span><b>{cash_weight:+.1f}%</b></div><div><span>Margin debit</span><b>{margin_debit:.1f}%</b></div><div><span>Short collateral</span><b>{short_collateral:.1f}%</b></div><div><span>PM pre-trade check</span><b class='review'>Required</b></div></div>
+<div class='exec-grid'>{''.join(execution_rows)}</div>
+<div class='cost-grid'><div class='cost-item'><span>Costed CAGR</span><b>{execution_stats['cagr_pct']:.2f}%</b><small>2008&ndash;2026 executable window</small></div><div class='cost-item'><span>Trading</span><b>{trading_bps:.1f} bp/yr</b><small>commission, regulatory fees and 1 bp slippage</small></div><div class='cost-item'><span>Margin financing</span><b>{financing_bps:.1f} bp/yr</b><small>benchmark plus IBKR tiers</small></div><div class='cost-item'><span>Net short carry</span><b>{short_net_bps:.1f} bp/yr</b><small>{borrow_bps:.1f} borrow less {short_credit_bps:.1f} proceeds credit</small></div></div>
+<p class='sub'>IBKR segregates short-sale proceeds, so the {cash_weight:+.1f}% economic cash balance is decomposed into a {margin_debit:.1f}% long-financing debit and {short_collateral:.1f}% of marked short collateral. This is configured for Portfolio Margin: the {regt_reference_buffer:.1f}% Reg T-equivalent buffer is retained only as a reference, while actual eligibility requires the complete target to pass IBKR's live Check Margin with at least a 20% projected cushion. The frozen return-level ensemble earned {execution_window_stats['cagr_pct']:.2f}% over the same executable window. Physical accounting before explicit IBKR costs earned {execution_summary.loc['Executable physical accounting before explicit IBKR costs', 'cagr_pct']:.2f}%; after commissions, regulatory fees, slippage, margin, borrow and short-proceeds interest it earned {execution_stats['cagr_pct']:.2f}%, with {execution_stats['ann_vol_pct']:.2f}% volatility and {execution_stats['max_dd_pct']:.2f}% maximum drawdown. Direct futures roll cost is {roll_bps:.1f} bp because the current portfolio holds ETFs, not futures.</p>
+<details><summary>Exact TSMOM long and short sleeve</summary><p>The unaggregated trend sleeve is {tsmom_gross:.1f}% gross and {tsmom_net:+.1f}% net before its ensemble weight. A positive position means the ETF beat BIL over the trailing 12 months; a negative position means it lagged BIL.</p><div class='table-wrap'><table><thead><tr><th>Ticker</th><th>Side</th><th>12m excess</th><th>36m vol</th><th>Sleeve weight</th></tr></thead><tbody>{tsmom_rows}</tbody></table></div></details>
+<details><summary>IBKR assumptions, limits and downloadable artifacts</summary><p>IBKR Pro Fixed: USD 0.005/share, USD 1 minimum and 1% order-value cap, plus published US regulatory fees. Positive free USD cash: benchmark minus 0.50%, with no interest on the first USD 10,000. Long financing: published benchmark-plus tiers starting at +1.50%. Short collateral is marked at 102%; the first USD 100,000 earns no proceeds interest and higher tiers earn benchmark minus the published spread. Historical borrow data is unavailable, so every liquid ETF short is conservatively charged 1.00% annually and must pass a live SLB check before trading. Hard limits: 175% gross, 150% net, 35% gross shorts, 25% per non-cash ETF and 50% maximum margin debit. Portfolio Margin is risk-based and broker-calculated; no public static formula can replace its live whole-book margin preview. <a href='macro_seasons_v4_execution_current_positions.csv'>positions CSV</a> &middot; <a href='macro_seasons_v4_execution_current_tsmom.csv'>TSMOM CSV</a> &middot; <a href='macro_seasons_v4_execution_summary.csv'>performance CSV</a> &middot; <a href='macro_seasons_v4_execution_pm_pretrade_check.csv'>PM check CSV</a> &middot; <a href='macro_seasons_v4_execution_assumptions.csv'>assumptions CSV</a>.</p></details></section>
 
 <section><h2>Long-only monthly returns since {first_year}</h2><p class='sub'>Percent per month after costs &middot; average completed calendar year {average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{tbody}</tbody></table></div></section>
 
@@ -350,6 +433,16 @@ def main() -> None:
     pdf = EXPORTS / "macro_seasons_v4_onepager.pdf"
     if pdf.exists():
         (OUT_DIR / pdf.name).write_bytes(pdf.read_bytes())
+    for name in [
+        "macro_seasons_v4_execution_current_positions.csv",
+        "macro_seasons_v4_execution_current_tsmom.csv",
+        "macro_seasons_v4_execution_summary.csv",
+        "macro_seasons_v4_execution_pm_pretrade_check.csv",
+        "macro_seasons_v4_execution_assumptions.csv",
+    ]:
+        source = EXPORTS / name
+        if source.exists():
+            (OUT_DIR / name).write_bytes(source.read_bytes())
     print(f"Wrote {output} ({len(page) // 1024} KB)")
 
 

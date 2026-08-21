@@ -1,0 +1,5 @@
+lower_usd,upper_usd,rate_type,benchmark_spread_bps,source_or_rationale
+0,100000,fixed_zero,0,IBKR Pro pays zero on the first USD 100000 of USD short-sale proceeds collateral
+100000,1000000,benchmark_minus,125,IBKR Pro USD short-sale proceeds tier benchmark minus 1.25 percent
+1000000,3000000,benchmark_minus,50,IBKR Pro USD short-sale proceeds tier benchmark minus 0.50 percent
+3000000,,benchmark_minus,25,IBKR Pro USD short-sale proceeds tier benchmark minus 0.25 percent

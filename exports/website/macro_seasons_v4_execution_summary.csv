@@ -1,0 +1,5 @@
+series,months,cagr_pct,ann_vol_pct,excess_sharpe,max_dd_pct,calmar
+Frozen return-level ensemble,319,9.21,8.47,0.823,-12.36,0.746
+Frozen return-level ensemble on executable window,223,8.32,8.66,0.775,-12.36,0.674
+Executable physical accounting before explicit IBKR costs,223,8.14,8.16,0.801,-11.37,0.716
+IBKR-costed executable ensemble,223,7.37,8.17,0.713,-11.94,0.617

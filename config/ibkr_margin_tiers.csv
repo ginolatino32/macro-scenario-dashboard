@@ -1,0 +1,6 @@
+lower_usd,upper_usd,spread_bps,source_or_rationale
+0,100000,150,IBKR Pro USD first tier benchmark plus 1.50 percent
+100000,1000000,100,IBKR Pro USD second tier benchmark plus 1.00 percent
+1000000,50000000,75,IBKR Pro USD third tier benchmark plus 0.75 percent
+50000000,250000000,50,IBKR Pro USD fourth tier benchmark plus 0.50 percent
+250000000,,50,IBKR Pro published floor benchmark plus 0.50 percent

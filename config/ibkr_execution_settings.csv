@@ -1,0 +1,28 @@
+setting,value,unit,source_or_rationale
+account_nav_usd,1000000,USD,Reference NAV used for share-level commissions and tiered financing
+commission_per_share_usd,0.005,USD/share,IBKR Pro Fixed US stocks and ETFs
+commission_min_order_usd,1.00,USD/order,IBKR Pro Fixed minimum
+commission_max_trade_fraction,0.01,fraction of trade value,IBKR published maximum per order
+sec_transaction_fee_rate,0.0000206,fraction of sale value,Current IBKR-published SEC transaction fee applied to sales
+finra_taf_per_share_usd,0.000195,USD/share sold,Current IBKR-published FINRA trading activity fee
+finra_taf_max_trade_usd,9.79,USD/sale,Current IBKR-published FINRA TAF cap per trade
+finra_cat_per_share_usd,0.000003,USD/share,Current IBKR-published consolidated audit trail fee
+slippage_bps,1.0,bps of traded notional,Conservative implementation allowance separate from broker commission
+cash_interest_spread_bps,50,bps below benchmark,IBKR Pro USD positive cash rate is benchmark minus 0.50 percent
+cash_interest_free_usd,10000,USD,IBKR pays no interest on first USD 10000
+default_short_borrow_bps,100,bps per year,Conservative liquid ETF assumption because historical IBKR borrow rates are unavailable
+short_collateral_factor,1.02,x short market value,Industry and IBKR convention for USD stock-loan collateral before whole-dollar mark rounding
+gross_exposure_limit,1.75,x NAV,Buffer below 2.0x Reg T long-only theoretical maximum
+net_exposure_min,0.25,x NAV,Prevents unintended near-market-neutral aggregate book
+net_exposure_max,1.50,x NAV,Matches the frozen model maximum leverage scale
+short_gross_limit,0.35,x NAV,Limits physical ETF short exposure and recall risk
+per_asset_abs_limit,0.25,x NAV,Maximum absolute exposure per non-cash ETF
+bil_abs_limit,1.00,x NAV,BIL is treated as cash-equivalent collateral
+max_borrow_fraction,0.50,x NAV,Maximum explicit USD debit balance
+regt_reference_initial_margin_fraction,0.50,fraction of gross,Conservative Reg T reference only; the configured account uses Portfolio Margin
+portfolio_margin_account_flag,1,boolean,One means the implementation is intended for an approved IBKR Portfolio Margin account
+portfolio_margin_minimum_nlv_usd,110000,USD,IBKR minimum NLV stated for upgrading to Portfolio Margin
+portfolio_margin_minimum_cushion_fraction,0.20,fraction of NLV,Required live post-trade cushion above IBKR projected maintenance margin
+default_futures_roll_bps,0,bps per year,No direct futures are held in the current target; ETF returns already embed fund roll effects
+annual_day_count,360,days,IBKR USD financing and stock-borrow convention
+broker_assumptions_review_yyyymmdd,20260820,YYYYMMDD,Date the linked IBKR schedules were last checked

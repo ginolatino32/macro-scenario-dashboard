@@ -1,0 +1,62 @@
+{
+  "as_of": "2026-07-31",
+  "broker_assumptions_reviewed_on": "2026-08-20",
+  "current_metadata": {
+    "as_of": "2026-07-31",
+    "borrow_weight": 0.43203653143165055,
+    "cash_weight": -0.20133651154028853,
+    "clipped_assets": "",
+    "effective_month": "2026-08",
+    "gross_exposure": 1.6627365513230126,
+    "inner_core_scale": 1.5,
+    "inner_long_only_scale": 1.5,
+    "limit_scale": 1.0,
+    "long_gross_exposure": 1.4320365314316506,
+    "margin_debit_weight": 0.43203653143165055,
+    "net_exposure": 1.2013365115402885,
+    "netted_bil_weight": 0.3814350535465168,
+    "outer_raw_vol": 0.06855827932358645,
+    "outer_scale": 1.4586130367714247,
+    "outer_weight_core": 0.2996524428934504,
+    "outer_weight_long_only": 0.311347116430497,
+    "outer_weight_tsmom": 0.3890004406760526,
+    "portfolio_margin_minimum_cushion": 0.2,
+    "portfolio_margin_status": "LIVE_IBKR_CHECK_REQUIRED",
+    "raw_gross_exposure": 2.0441716048695295,
+    "raw_net_exposure": 1.5827715650868053,
+    "regt_reference_buffer": 0.16863172433849372,
+    "regt_reference_requirement": 0.8313682756615063,
+    "short_collateral_weight": 0.23531402028918919,
+    "short_gross_exposure": 0.23070001989136193,
+    "unencumbered_cash_weight": 0.0
+  },
+  "execution_backtest_start": "2008-01-31",
+  "input_hashes": {
+    "config/ibkr_execution_settings.csv": "c820e19169f4ffa71c723dc247b43d3d74778474a9439224d1c1144cff4055df",
+    "config/ibkr_margin_tiers.csv": "cb690557a295fc3798c3a30503e8afec9f2b1e0a52152e296440d13057f1a5f6",
+    "config/ibkr_short_borrow_assumptions.csv": "1f01e2827a1416fd22e4ee214ced94282a482e506295727551d76e007d6e9cff",
+    "config/ibkr_short_proceeds_tiers.csv": "d3ccbe646d2b656e47ca93d73f581d6bedf99a54754986cf89cbc7c02607ad27",
+    "data/factors_point_in_time.csv": "ab8f9c58a971461644cf54f14f21e246079a582b240a588362e2409267172739",
+    "data/prices_macro_seasons_extended.csv": "2436b15ee66cf5f6b6e8e491d19d4a3e9c296733973990bb4bb6f48221bcc842",
+    "research/macro_seasons_v4.py": "f92615e5727d8d971354affe08c7ea292b876dd0fcacde62b1f064c359d5228d",
+    "research/macro_seasons_v4_execution.py": "22422610013c2511972e5e14ba97e93d3001346b6307dc50f588c7e9a6e1f0db"
+  },
+  "margin_policy": {
+    "account_type": "PORTFOLIO_MARGIN",
+    "exact_requirement_source": "LIVE_IBKR_CHECK_MARGIN",
+    "minimum_projected_cushion_fraction": 0.2,
+    "regt_result_is_reference_only": true
+  },
+  "model_version": "macro_seasons_v4_ibkr_execution_v1",
+  "sources": {
+    "cash_interest": "https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php",
+    "commissions": "https://www.interactivebrokers.com/en/pricing/commissions-stocks.php",
+    "margin_rates": "https://www.interactivebrokers.com/en/trading/pricing-margin-rates.php",
+    "margin_requirements": "https://www.interactivebrokers.com/en/trading/margin-stocks.php",
+    "portfolio_margin_eligibility": "https://www.ibkrguides.com/clientportal/accounttype.htm",
+    "portfolio_margin_monitoring": "https://www.ibkrguides.com/traderworkstation/margin-monitoring.htm",
+    "short_collateral": "https://www.interactivebrokers.com/campus/glossary-terms/collateral-short-sale/",
+    "short_proceeds_examples": "https://www.interactivebrokers.com/en/accounts/fees/interestPaid_Example2.php",
+    "short_sale_cost": "https://www.interactivebrokers.com/en/pricing/short-sale-cost.php"
+  }
+}
