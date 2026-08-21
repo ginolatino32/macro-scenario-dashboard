@@ -31,7 +31,8 @@ def test_execution_section_explains_bil_netting() -> None:
 
 
 def test_allocation_sections_use_reader_facing_labels() -> None:
-    page = _page()
+    data = load_data()
+    page = build_page(data)
 
     assert "Long-only allocation for August 2026" in page
     assert "L/S allocation for August 2026" in page
@@ -44,7 +45,38 @@ def test_allocation_sections_use_reader_facing_labels() -> None:
     assert "strip = monthly modal season" not in page
     assert "Leveraged ensemble" not in page
     assert "historical PIT simulation" not in page
+    assert "in one line each" not in page
     assert "L/S portfolio" in page
+
+    long_only = page.split("<section data-allocation='long-only'>", 1)[1].split(
+        "</section>", 1
+    )[0]
+    ls = page.split("<section id='execution' data-allocation='ls'>", 1)[1].split(
+        "</section>", 1
+    )[0]
+    assert long_only.count("class='allocation-row'") == len(data["allocation"])
+    assert ls.count("class='exec-row'") == len(data["execution_positions"])
+
+
+def test_equity_chart_keeps_all_series_without_end_value_labels() -> None:
+    page = _page()
+    chart = page.split("<svg id='eqchart'", 1)[1].split("</svg>", 1)[0]
+
+    assert re.findall(r"data-series='([^']+)'", chart) == [
+        "6040",
+        "spy",
+        "long-only",
+        "ls",
+    ]
+    text_labels = re.findall(r"<text[^>]*>([^<]+)</text>", chart)
+    assert text_labels
+    assert all(re.fullmatch(r"(?:1|2|4|8|16)x|20\d{2}", label) for label in text_labels)
+
+
+def test_page_requests_fresh_html() -> None:
+    page = _page()
+
+    assert "content='no-cache, no-store, must-revalidate'" in page
 
 
 def test_monthly_returns_offer_long_only_and_costed_ls_views_from_2007() -> None:

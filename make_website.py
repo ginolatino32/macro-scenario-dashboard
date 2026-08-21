@@ -208,13 +208,16 @@ def equity_svg(long_only: pd.DataFrame, ensemble: pd.DataFrame,
         if date >= eq.index.min():
             parts.append(f"<text x='{x(date):.0f}' y='{height-6}' text-anchor='middle' class='axis'>{year}</text>")
 
-    for column, color, stroke, extra in [
-        ("b6040", B6040_COLOR, 1.3, "stroke-dasharray='6 5'"),
-        ("spy", SPY_COLOR, 1.45, ""),
-        ("long_only", LONG_ONLY_COLOR, 1.8, ""),
-        ("ensemble", ENSEMBLE_COLOR, 2.6, ""),
+    for column, series_id, color, stroke, extra in [
+        ("b6040", "6040", B6040_COLOR, 1.3, "stroke-dasharray='6 5'"),
+        ("spy", "spy", SPY_COLOR, 1.45, ""),
+        ("long_only", "long-only", LONG_ONLY_COLOR, 1.8, ""),
+        ("ensemble", "ls", ENSEMBLE_COLOR, 2.6, ""),
     ]:
-        parts.append(f"<path d='{path(column)}' fill='none' stroke='{color}' stroke-width='{stroke}' {extra}/>")
+        parts.append(
+            f"<path data-series='{series_id}' d='{path(column)}' fill='none' "
+            f"stroke='{color}' stroke-width='{stroke}' {extra}/>"
+        )
 
     strip_y = mt + plot_h + 8
     strip_width = plot_w / len(eq)
@@ -419,6 +422,9 @@ buttons.forEach(function(button){button.addEventListener('click',function(){
 
     return f"""<!doctype html><html lang='en'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
+<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>
+<meta http-equiv='Pragma' content='no-cache'>
+<meta http-equiv='Expires' content='0'>
 <title>New Sixty Forty | Macro Seasons v4</title>
 <meta name='description' content='Point-in-time Macro Seasons portfolios, current allocation and historical results.'>
 <style>
@@ -466,9 +472,9 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='chart-wrap'>{svg}<div class='tip' id='eqtip'></div></div><div class='season-key'><span><i style='background:{SEASON_COLORS['SPRING']}'></i>Spring</span><span><i style='background:{SEASON_COLORS['SUMMER']}'></i>Summer</span><span><i style='background:{SEASON_COLORS['FALL']}'></i>Fall</span><span><i style='background:{SEASON_COLORS['WINTER']}'></i>Winter</span></div>
 <details><summary>Benchmark results</summary><p>S&amp;P 500: CAGR {spy_stats['cagr_pct']:.1f}%, excess Sharpe {spy_stats['excess_sharpe']:.2f}, max loss {spy_stats['max_dd_pct']:.1f}%. 60/40 SPY/AGG: CAGR {b6040_stats['cagr_pct']:.1f}%, excess Sharpe {b6040_stats['excess_sharpe']:.2f}, max loss {b6040_stats['max_dd_pct']:.1f}%.</p></details></section>
 
-<section><h2>Long-only allocation for {effective_month}</h2><div class='allocation-grid'>{''.join(allocation_rows)}</div></section>
+<section data-allocation='long-only'><h2>Long-only allocation for {effective_month}</h2><div class='allocation-grid'>{''.join(allocation_rows)}</div></section>
 
-<section id='execution'><h2>L/S allocation for {effective_month}</h2>
+<section id='execution' data-allocation='ls'><h2>L/S allocation for {effective_month}</h2>
 <div class='exec-summary'><div><span>Gross exposure</span><b>{gross_exposure:.1f}%</b></div><div><span>Net exposure</span><b>{net_exposure:.1f}%</b></div><div><span>Gross shorts</span><b>{short_exposure:.1f}%</b></div><div><span>Economic cash / borrow</span><b>{cash_weight:+.1f}%</b></div><div><span>Margin debit</span><b>{margin_debit:.1f}%</b></div><div><span>Short collateral</span><b>{short_collateral:.1f}%</b></div></div>
 <div class='netting-note'><b>Why BIL is absent</b><p>BIL remains {long_only_bil_weight:.1f}% of the separate long-only portfolio. In the aggregated L/S book, {netted_bil_weight:.1f}% of raw BIL exposure is sold first and used to reduce the margin debit. Holding BIL while borrowing at IBKR's higher margin rate would be a negative-carry round trip. This is financing netting, not a change to the Summer season allocation.</p></div>
 <div class='exec-grid'>{''.join(execution_rows)}</div>
