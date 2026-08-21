@@ -19,6 +19,13 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 EXPORTS = ROOT / "exports"
 OUT_DIR = EXPORTS / "website"
+SITE_ASSET_DIR = ROOT / "assets" / "site"
+SITE_ASSETS = (
+    "favicon.svg",
+    "favicon.ico",
+    "favicon-32x32.png",
+    "apple-touch-icon.png",
+)
 
 SEASON_COLORS = {
     "SPRING": "#3bb273",
@@ -427,6 +434,11 @@ buttons.forEach(function(button){button.addEventListener('click',function(){
 
     return f"""<!doctype html><html lang='en'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
+<link rel='icon' href='favicon.svg?v=bitcoin-1' type='image/svg+xml'>
+<link rel='icon' href='favicon.ico?v=bitcoin-1' sizes='any'>
+<link rel='icon' href='favicon-32x32.png?v=bitcoin-1' sizes='32x32' type='image/png'>
+<link rel='apple-touch-icon' href='apple-touch-icon.png?v=bitcoin-1'>
+<meta name='theme-color' content='#f7931a'>
 <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>
 <meta http-equiv='Pragma' content='no-cache'>
 <meta http-equiv='Expires' content='0'>
@@ -501,6 +513,11 @@ def main() -> None:
     page = build_page(data)
     output = OUT_DIR / "index.html"
     output.write_text(page, encoding="utf-8")
+    for name in SITE_ASSETS:
+        source = SITE_ASSET_DIR / name
+        if not source.exists():
+            raise FileNotFoundError(f"Missing website asset: {source}")
+        (OUT_DIR / name).write_bytes(source.read_bytes())
     pdf = EXPORTS / "macro_seasons_v4_onepager.pdf"
     if pdf.exists():
         pdf_bytes = pdf.read_bytes()

@@ -88,6 +88,16 @@ def test_page_requests_fresh_html() -> None:
     assert "content='no-cache, no-store, must-revalidate'" in page
 
 
+def test_page_uses_bitcoin_favicon_set() -> None:
+    page = _page()
+
+    assert "href='favicon.svg?v=bitcoin-1'" in page
+    assert "href='favicon.ico?v=bitcoin-1'" in page
+    assert "href='favicon-32x32.png?v=bitcoin-1'" in page
+    assert "href='apple-touch-icon.png?v=bitcoin-1'" in page
+    assert "content='#f7931a'" in page
+
+
 def test_monthly_returns_offer_long_only_and_costed_ls_views_from_2007() -> None:
     page = _page()
 

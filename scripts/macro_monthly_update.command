@@ -51,6 +51,10 @@ if [ "$FAILURES" -eq 0 ]; then
     >>"$LOG" 2>&1 || true
   if scp -o BatchMode=yes -o ConnectTimeout=15 \
     exports/website/index.html \
+    exports/website/favicon.svg \
+    exports/website/favicon.ico \
+    exports/website/favicon-32x32.png \
+    exports/website/apple-touch-icon.png \
     exports/website/macro_seasons_methodology.pdf \
     exports/website/macro_seasons_v4_onepager.pdf \
     exports/website/macro_seasons_v4_execution_current_positions.csv \
