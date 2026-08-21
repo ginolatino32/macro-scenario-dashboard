@@ -92,4 +92,7 @@ def test_monthly_returns_offer_long_only_and_costed_ls_views_from_2007() -> None
     assert re.findall(r"data-return-view='([^']+)'", page) == ["long-only", "ls"]
     assert re.findall(r"data-return-panel='([^']+)'", page) == ["long-only", "ls"]
     assert page.count("<tbody><tr><td>2007</td>") == 2
-    assert "history begins January 2008" in page
+    ls_panel = page.split("data-return-panel='ls'", 1)[1].split("</section>", 1)[0]
+    row_2007 = ls_panel.split("<tr><td>2007</td>", 1)[1].split("</tr>", 1)[0]
+    assert row_2007.count("class='na'") == 0
+    assert "history begins January 2008" not in page

@@ -30,7 +30,7 @@
     "short_gross_exposure": 0.23070001989136193,
     "unencumbered_cash_weight": 0.0
   },
-  "execution_backtest_start": "2008-01-31",
+  "execution_backtest_start": "2007-01-31",
   "input_hashes": {
     "config/ibkr_execution_settings.csv": "c820e19169f4ffa71c723dc247b43d3d74778474a9439224d1c1144cff4055df",
     "config/ibkr_margin_tiers.csv": "cb690557a295fc3798c3a30503e8afec9f2b1e0a52152e296440d13057f1a5f6",
@@ -39,7 +39,7 @@
     "data/factors_point_in_time.csv": "ab8f9c58a971461644cf54f14f21e246079a582b240a588362e2409267172739",
     "data/prices_macro_seasons_extended.csv": "2436b15ee66cf5f6b6e8e491d19d4a3e9c296733973990bb4bb6f48221bcc842",
     "research/macro_seasons_v4.py": "f92615e5727d8d971354affe08c7ea292b876dd0fcacde62b1f064c359d5228d",
-    "research/macro_seasons_v4_execution.py": "22422610013c2511972e5e14ba97e93d3001346b6307dc50f588c7e9a6e1f0db"
+    "research/macro_seasons_v4_execution.py": "ae694beb59ae5722b6d7e78286e1a966da1e7cd54dcdabfff65a78d7dd09c6cc"
   },
   "margin_policy": {
     "account_type": "PORTFOLIO_MARGIN",
@@ -47,7 +47,7 @@
     "minimum_projected_cushion_fraction": 0.2,
     "regt_result_is_reference_only": true
   },
-  "model_version": "macro_seasons_v4_ibkr_execution_v1",
+  "model_version": "macro_seasons_v4_ibkr_execution_v2",
   "sources": {
     "cash_interest": "https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php",
     "commissions": "https://www.interactivebrokers.com/en/pricing/commissions-stocks.php",

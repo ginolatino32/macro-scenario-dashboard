@@ -163,6 +163,18 @@ def test_execution_ledger_charges_every_requested_cost_and_no_futures_roll() -> 
     assert costed < no_cost
 
 
+def test_execution_ledger_includes_complete_2007_history() -> None:
+    ledger_path = ROOT / "exports" / "macro_seasons_v4_execution_ledger.csv"
+    if not ledger_path.exists():
+        pytest.skip("V4 execution exports are not available")
+    ledger = pd.read_csv(ledger_path, parse_dates=["return_date"])
+    rows_2007 = ledger.loc[ledger["return_date"].dt.year == 2007]
+
+    assert execution.EXECUTION_BACKTEST_START == pd.Timestamp("2007-01-31")
+    assert rows_2007["return_date"].dt.month.tolist() == list(range(1, 13))
+    assert rows_2007["net_return"].notna().all()
+
+
 def test_monthly_outer_rebalance_charges_drifted_target_turnover() -> None:
     dates = pd.to_datetime(["2020-12-31", "2021-01-31", "2021-02-28"])
     prices = pd.DataFrame(

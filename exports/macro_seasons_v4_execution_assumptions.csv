@@ -1,50 +1,50 @@
 category,setting,value,unit,source_or_rationale,model_version
-execution_setting,account_nav_usd,1000000.0,USD,Reference NAV used for share-level commissions and tiered financing,macro_seasons_v4_ibkr_execution_v1
-execution_setting,commission_per_share_usd,0.005,USD/share,IBKR Pro Fixed US stocks and ETFs,macro_seasons_v4_ibkr_execution_v1
-execution_setting,commission_min_order_usd,1.0,USD/order,IBKR Pro Fixed minimum,macro_seasons_v4_ibkr_execution_v1
-execution_setting,commission_max_trade_fraction,0.01,fraction of trade value,IBKR published maximum per order,macro_seasons_v4_ibkr_execution_v1
-execution_setting,sec_transaction_fee_rate,2.06e-05,fraction of sale value,Current IBKR-published SEC transaction fee applied to sales,macro_seasons_v4_ibkr_execution_v1
-execution_setting,finra_taf_per_share_usd,0.000195,USD/share sold,Current IBKR-published FINRA trading activity fee,macro_seasons_v4_ibkr_execution_v1
-execution_setting,finra_taf_max_trade_usd,9.79,USD/sale,Current IBKR-published FINRA TAF cap per trade,macro_seasons_v4_ibkr_execution_v1
-execution_setting,finra_cat_per_share_usd,3e-06,USD/share,Current IBKR-published consolidated audit trail fee,macro_seasons_v4_ibkr_execution_v1
-execution_setting,slippage_bps,1.0,bps of traded notional,Conservative implementation allowance separate from broker commission,macro_seasons_v4_ibkr_execution_v1
-execution_setting,cash_interest_spread_bps,50.0,bps below benchmark,IBKR Pro USD positive cash rate is benchmark minus 0.50 percent,macro_seasons_v4_ibkr_execution_v1
-execution_setting,cash_interest_free_usd,10000.0,USD,IBKR pays no interest on first USD 10000,macro_seasons_v4_ibkr_execution_v1
-execution_setting,default_short_borrow_bps,100.0,bps per year,Conservative liquid ETF assumption because historical IBKR borrow rates are unavailable,macro_seasons_v4_ibkr_execution_v1
-execution_setting,short_collateral_factor,1.02,x short market value,Industry and IBKR convention for USD stock-loan collateral before whole-dollar mark rounding,macro_seasons_v4_ibkr_execution_v1
-execution_setting,gross_exposure_limit,1.75,x NAV,Buffer below 2.0x Reg T long-only theoretical maximum,macro_seasons_v4_ibkr_execution_v1
-execution_setting,net_exposure_min,0.25,x NAV,Prevents unintended near-market-neutral aggregate book,macro_seasons_v4_ibkr_execution_v1
-execution_setting,net_exposure_max,1.5,x NAV,Matches the frozen model maximum leverage scale,macro_seasons_v4_ibkr_execution_v1
-execution_setting,short_gross_limit,0.35,x NAV,Limits physical ETF short exposure and recall risk,macro_seasons_v4_ibkr_execution_v1
-execution_setting,per_asset_abs_limit,0.25,x NAV,Maximum absolute exposure per non-cash ETF,macro_seasons_v4_ibkr_execution_v1
-execution_setting,bil_abs_limit,1.0,x NAV,BIL is treated as cash-equivalent collateral,macro_seasons_v4_ibkr_execution_v1
-execution_setting,max_borrow_fraction,0.5,x NAV,Maximum explicit USD debit balance,macro_seasons_v4_ibkr_execution_v1
-execution_setting,regt_reference_initial_margin_fraction,0.5,fraction of gross,Conservative Reg T reference only; the configured account uses Portfolio Margin,macro_seasons_v4_ibkr_execution_v1
-execution_setting,portfolio_margin_account_flag,1.0,boolean,One means the implementation is intended for an approved IBKR Portfolio Margin account,macro_seasons_v4_ibkr_execution_v1
-execution_setting,portfolio_margin_minimum_nlv_usd,110000.0,USD,IBKR minimum NLV stated for upgrading to Portfolio Margin,macro_seasons_v4_ibkr_execution_v1
-execution_setting,portfolio_margin_minimum_cushion_fraction,0.2,fraction of NLV,Required live post-trade cushion above IBKR projected maintenance margin,macro_seasons_v4_ibkr_execution_v1
-execution_setting,default_futures_roll_bps,0.0,bps per year,No direct futures are held in the current target; ETF returns already embed fund roll effects,macro_seasons_v4_ibkr_execution_v1
-execution_setting,annual_day_count,360.0,days,IBKR USD financing and stock-borrow convention,macro_seasons_v4_ibkr_execution_v1
-execution_setting,broker_assumptions_review_yyyymmdd,20260820.0,YYYYMMDD,Date the linked IBKR schedules were last checked,macro_seasons_v4_ibkr_execution_v1
-margin_tier,margin_0_100000,150.0,bps above benchmark,IBKR Pro USD first tier benchmark plus 1.50 percent,macro_seasons_v4_ibkr_execution_v1
-margin_tier,margin_100000_1e+06,100.0,bps above benchmark,IBKR Pro USD second tier benchmark plus 1.00 percent,macro_seasons_v4_ibkr_execution_v1
-margin_tier,margin_1e+06_5e+07,75.0,bps above benchmark,IBKR Pro USD third tier benchmark plus 0.75 percent,macro_seasons_v4_ibkr_execution_v1
-margin_tier,margin_5e+07_2.5e+08,50.0,bps above benchmark,IBKR Pro USD fourth tier benchmark plus 0.50 percent,macro_seasons_v4_ibkr_execution_v1
-margin_tier,margin_2.5e+08_inf,50.0,bps above benchmark,IBKR Pro published floor benchmark plus 0.50 percent,macro_seasons_v4_ibkr_execution_v1
-short_proceeds_tier,short_proceeds_0_100000,0.0,fixed_zero,IBKR Pro pays zero on the first USD 100000 of USD short-sale proceeds collateral,macro_seasons_v4_ibkr_execution_v1
-short_proceeds_tier,short_proceeds_100000_1e+06,125.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 1.25 percent,macro_seasons_v4_ibkr_execution_v1
-short_proceeds_tier,short_proceeds_1e+06_3e+06,50.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 0.50 percent,macro_seasons_v4_ibkr_execution_v1
-short_proceeds_tier,short_proceeds_3e+06_inf,25.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 0.25 percent,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_SPY,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_QQQ,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_IWM,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_EFA,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_EEM,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_TLT,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_IEF,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_GLD,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_DBC,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_UUP,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_FXY,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_FXF,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
-short_borrow_proxy,borrow_HYG,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v1
+execution_setting,account_nav_usd,1000000.0,USD,Reference NAV used for share-level commissions and tiered financing,macro_seasons_v4_ibkr_execution_v2
+execution_setting,commission_per_share_usd,0.005,USD/share,IBKR Pro Fixed US stocks and ETFs,macro_seasons_v4_ibkr_execution_v2
+execution_setting,commission_min_order_usd,1.0,USD/order,IBKR Pro Fixed minimum,macro_seasons_v4_ibkr_execution_v2
+execution_setting,commission_max_trade_fraction,0.01,fraction of trade value,IBKR published maximum per order,macro_seasons_v4_ibkr_execution_v2
+execution_setting,sec_transaction_fee_rate,2.06e-05,fraction of sale value,Current IBKR-published SEC transaction fee applied to sales,macro_seasons_v4_ibkr_execution_v2
+execution_setting,finra_taf_per_share_usd,0.000195,USD/share sold,Current IBKR-published FINRA trading activity fee,macro_seasons_v4_ibkr_execution_v2
+execution_setting,finra_taf_max_trade_usd,9.79,USD/sale,Current IBKR-published FINRA TAF cap per trade,macro_seasons_v4_ibkr_execution_v2
+execution_setting,finra_cat_per_share_usd,3e-06,USD/share,Current IBKR-published consolidated audit trail fee,macro_seasons_v4_ibkr_execution_v2
+execution_setting,slippage_bps,1.0,bps of traded notional,Conservative implementation allowance separate from broker commission,macro_seasons_v4_ibkr_execution_v2
+execution_setting,cash_interest_spread_bps,50.0,bps below benchmark,IBKR Pro USD positive cash rate is benchmark minus 0.50 percent,macro_seasons_v4_ibkr_execution_v2
+execution_setting,cash_interest_free_usd,10000.0,USD,IBKR pays no interest on first USD 10000,macro_seasons_v4_ibkr_execution_v2
+execution_setting,default_short_borrow_bps,100.0,bps per year,Conservative liquid ETF assumption because historical IBKR borrow rates are unavailable,macro_seasons_v4_ibkr_execution_v2
+execution_setting,short_collateral_factor,1.02,x short market value,Industry and IBKR convention for USD stock-loan collateral before whole-dollar mark rounding,macro_seasons_v4_ibkr_execution_v2
+execution_setting,gross_exposure_limit,1.75,x NAV,Buffer below 2.0x Reg T long-only theoretical maximum,macro_seasons_v4_ibkr_execution_v2
+execution_setting,net_exposure_min,0.25,x NAV,Prevents unintended near-market-neutral aggregate book,macro_seasons_v4_ibkr_execution_v2
+execution_setting,net_exposure_max,1.5,x NAV,Matches the frozen model maximum leverage scale,macro_seasons_v4_ibkr_execution_v2
+execution_setting,short_gross_limit,0.35,x NAV,Limits physical ETF short exposure and recall risk,macro_seasons_v4_ibkr_execution_v2
+execution_setting,per_asset_abs_limit,0.25,x NAV,Maximum absolute exposure per non-cash ETF,macro_seasons_v4_ibkr_execution_v2
+execution_setting,bil_abs_limit,1.0,x NAV,BIL is treated as cash-equivalent collateral,macro_seasons_v4_ibkr_execution_v2
+execution_setting,max_borrow_fraction,0.5,x NAV,Maximum explicit USD debit balance,macro_seasons_v4_ibkr_execution_v2
+execution_setting,regt_reference_initial_margin_fraction,0.5,fraction of gross,Conservative Reg T reference only; the configured account uses Portfolio Margin,macro_seasons_v4_ibkr_execution_v2
+execution_setting,portfolio_margin_account_flag,1.0,boolean,One means the implementation is intended for an approved IBKR Portfolio Margin account,macro_seasons_v4_ibkr_execution_v2
+execution_setting,portfolio_margin_minimum_nlv_usd,110000.0,USD,IBKR minimum NLV stated for upgrading to Portfolio Margin,macro_seasons_v4_ibkr_execution_v2
+execution_setting,portfolio_margin_minimum_cushion_fraction,0.2,fraction of NLV,Required live post-trade cushion above IBKR projected maintenance margin,macro_seasons_v4_ibkr_execution_v2
+execution_setting,default_futures_roll_bps,0.0,bps per year,No direct futures are held in the current target; ETF returns already embed fund roll effects,macro_seasons_v4_ibkr_execution_v2
+execution_setting,annual_day_count,360.0,days,IBKR USD financing and stock-borrow convention,macro_seasons_v4_ibkr_execution_v2
+execution_setting,broker_assumptions_review_yyyymmdd,20260820.0,YYYYMMDD,Date the linked IBKR schedules were last checked,macro_seasons_v4_ibkr_execution_v2
+margin_tier,margin_0_100000,150.0,bps above benchmark,IBKR Pro USD first tier benchmark plus 1.50 percent,macro_seasons_v4_ibkr_execution_v2
+margin_tier,margin_100000_1e+06,100.0,bps above benchmark,IBKR Pro USD second tier benchmark plus 1.00 percent,macro_seasons_v4_ibkr_execution_v2
+margin_tier,margin_1e+06_5e+07,75.0,bps above benchmark,IBKR Pro USD third tier benchmark plus 0.75 percent,macro_seasons_v4_ibkr_execution_v2
+margin_tier,margin_5e+07_2.5e+08,50.0,bps above benchmark,IBKR Pro USD fourth tier benchmark plus 0.50 percent,macro_seasons_v4_ibkr_execution_v2
+margin_tier,margin_2.5e+08_inf,50.0,bps above benchmark,IBKR Pro published floor benchmark plus 0.50 percent,macro_seasons_v4_ibkr_execution_v2
+short_proceeds_tier,short_proceeds_0_100000,0.0,fixed_zero,IBKR Pro pays zero on the first USD 100000 of USD short-sale proceeds collateral,macro_seasons_v4_ibkr_execution_v2
+short_proceeds_tier,short_proceeds_100000_1e+06,125.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 1.25 percent,macro_seasons_v4_ibkr_execution_v2
+short_proceeds_tier,short_proceeds_1e+06_3e+06,50.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 0.50 percent,macro_seasons_v4_ibkr_execution_v2
+short_proceeds_tier,short_proceeds_3e+06_inf,25.0,benchmark_minus,IBKR Pro USD short-sale proceeds tier benchmark minus 0.25 percent,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_SPY,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_QQQ,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_IWM,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_EFA,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_EEM,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_TLT,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_IEF,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_GLD,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_DBC,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_UUP,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_FXY,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_FXF,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2
+short_borrow_proxy,borrow_HYG,100.0,annual bps,Replace with same-day IBKR SLB rate before trading,macro_seasons_v4_ibkr_execution_v2

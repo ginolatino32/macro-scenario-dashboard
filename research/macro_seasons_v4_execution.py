@@ -20,8 +20,8 @@ import pandas as pd
 import macro_seasons_v4 as m
 
 
-MODEL_VERSION = "macro_seasons_v4_ibkr_execution_v1"
-EXECUTION_BACKTEST_START = pd.Timestamp("2008-01-31")
+MODEL_VERSION = "macro_seasons_v4_ibkr_execution_v2"
+EXECUTION_BACKTEST_START = pd.Timestamp("2007-01-31")
 SETTINGS_FILE = m.ROOT / "config" / "ibkr_execution_settings.csv"
 MARGIN_TIERS_FILE = m.ROOT / "config" / "ibkr_margin_tiers.csv"
 SHORT_BORROW_FILE = m.ROOT / "config" / "ibkr_short_borrow_assumptions.csv"
@@ -556,9 +556,8 @@ def build_target_positions(prices: pd.DataFrame, probabilities: pd.DataFrame,
     core_scales = _stream_scale_history(core_ledger["strategy_return"])
     long_scales = _stream_scale_history(long_ledger["strategy_return"])
     common = core_wide.index.intersection(long_wide.index).intersection(tsmom_wide.index).intersection(outer_diagnostics.index)
-    # The frozen research model uses pre-inception proxies before 2008. Broker
-    # execution costs require actual listed ETF prices, so the executable track
-    # begins only after the live ETF universe and BIL collateral are available.
+    # Keep the public comparison window consistent across the long-only and L/S
+    # portfolios. The extended price panel supplies the required 2007 history.
     common = common[common >= EXECUTION_BACKTEST_START]
 
     position_rows: list[dict[str, object]] = []
