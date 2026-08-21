@@ -30,10 +30,27 @@ def test_execution_section_explains_bil_netting() -> None:
     assert "Two strategies, reported separately" not in page
 
 
+def test_allocation_sections_use_reader_facing_labels() -> None:
+    page = _page()
+
+    assert "Long-only allocation for August 2026" in page
+    assert "L/S allocation for August 2026" in page
+    assert "Exact long-only allocation" not in page
+    assert "Executable leveraged portfolio" not in page
+    assert "Generated from July month-end signals" not in page
+    assert "Aggregated and netted ETF positions" not in page
+    assert "Model target, not a broker order" not in page
+    assert "PM pre-trade check" not in page
+    assert "strip = monthly modal season" not in page
+    assert "Leveraged ensemble" not in page
+    assert "historical PIT simulation" not in page
+    assert "L/S portfolio" in page
+
+
 def test_monthly_returns_offer_long_only_and_costed_ls_views_from_2007() -> None:
     page = _page()
 
     assert re.findall(r"data-return-view='([^']+)'", page) == ["long-only", "ls"]
     assert re.findall(r"data-return-panel='([^']+)'", page) == ["long-only", "ls"]
     assert page.count("<tbody><tr><td>2007</td>") == 2
-    assert "physical history begins January 2008" in page
+    assert "history begins January 2008" in page
