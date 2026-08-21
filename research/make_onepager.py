@@ -150,7 +150,7 @@ def page_header(title: str, subtitle: str, eyebrow: str) -> list:
 
 def season_table() -> Table:
     rows = [
-        ["Season", "Growth and inflation", "Economic reading", "Fixed sleeve emphasis"],
+        ["Season", "Growth and inflation", "Economic reading", "Fixed allocation emphasis"],
         ["SPRING", "Growth rising\nInflation cooling", "Recovery with disinflation", "Broad equities, technology, credit, housing and modest duration"],
         ["SUMMER", "Growth rising\nInflation heating", "Reflationary expansion", "Cyclicals, value, energy, materials, emerging markets, commodities and TIPS"],
         ["FALL", "Growth falling\nInflation heating", "Stagflation", "Gold, broad commodities, inflation protection, dollar, defensive equities and short duration"],
@@ -262,12 +262,12 @@ def monthly_process() -> Table:
         (
             "3",
             "Calculate four season weights",
-            "Stronger growth raises Spring and Summer; weaker growth raises Fall and Winter. Higher inflation raises Summer and Fall; lower inflation raises Spring and Winter. The four values total 100% and are used directly as sleeve weights. They classify current conditions rather than forecasting event probabilities.",
+            "Stronger growth raises Spring and Summer; weaker growth raises Fall and Winter. Higher inflation raises Summer and Fall; lower inflation raises Spring and Winter. The four values total 100% and determine how much of each season allocation enters the portfolio. They classify current conditions rather than forecasting event probabilities.",
         ),
         (
             "4",
             "Build next month's holdings",
-            "Adjust each manually specified season template with trailing volatility, blend all four templates using the season weights, then apply liquidity, real-yield, credit, momentum, trend and portfolio-volatility rules in that order.",
+            "Average each fixed season allocation with a version adjusted for trailing 36-month volatility. Blend the four results using the current season percentages, then apply the liquidity, real-yield, credit, momentum, trend and portfolio-volatility rules.",
         ),
         (
             "5",
@@ -307,8 +307,8 @@ def monthly_process() -> Table:
 def probability_note() -> Table:
     reading = (
         "<b>Reading the dashboard</b><br/>"
-        "The four displayed values come from the Growth and Inflation scores and sum to 100%. The portfolio uses them directly as sleeve weights. "
-        "A 31% Summer value assigns 31% of the pre-overlay blend to the Summer template; the other templates receive the remaining 69%. "
+        "The four displayed values come from the Growth and Inflation scores and sum to 100%. The portfolio uses them directly to blend the four season allocations. "
+        "A 31% Summer value assigns 31% of the pre-overlay blend to the Summer allocation; the other season allocations receive the remaining 69%. "
         "The values describe the current classification and are not calibrated forecasts of future events."
     )
     table = Table(
@@ -383,11 +383,11 @@ def portfolio_comparison() -> Table:
         Spacer(1, 3),
         text("Weights sum to 100%. The portfolio holds long ETF positions and BIL. It has no shorts or borrowing.", 8.0, NAVY, bold=True, leading=9.7),
         Spacer(1, 5),
-        text("1. <b>Template adjustment.</b> For each season, start from the strategic weights in section 4. Calculate trailing 36-month volatility, form a version that divides each starting weight by its volatility, and average that version 50/50 with the starting weights.", 7.0, INK, leading=8.6),
+        text("1. <b>Season allocation.</b> Start with the fixed percentages in section 4. Divide each ETF's starting weight by its trailing 36-month volatility, rescale the result to 100%, and average it equally with the fixed allocation.", 7.0, INK, leading=8.6),
         Spacer(1, 2),
-        text("2. <b>Season and liquidity blend.</b> Combine all four adjusted templates using the Growth/Inflation season weights. The Liquidity score can move up to 15 percentage points from defensive ETFs to risk ETFs, or up to 25 points from risk to defense.", 7.0, INK, leading=8.6),
+        text("2. <b>Season and liquidity blend.</b> Combine all four adjusted season allocations using the Growth/Inflation season weights. The Liquidity score can move up to 15 percentage points from defensive ETFs to risk ETFs, or up to 25 points from risk to defense.", 7.0, INK, leading=8.6),
         Spacer(1, 2),
-        text("3. <b>Real yields and credit.</b> The six-month change in the 10-year Treasury yield less five-year breakeven inflation rotates up to half of the available GLD or TLT/IEF sleeve. Credit stress turns on when high-yield OAS, or the earlier-history Baa yield spread proxy, exceeds 110% of its trailing 36-month median and has widened over three months; the model then halves the risk sleeve.", 7.0, INK, leading=8.6),
+        text("3. <b>Real yields and credit.</b> The six-month change in the 10-year Treasury yield less five-year breakeven inflation can move up to half of the available allocation between GLD and TLT/IEF. Credit stress turns on when high-yield OAS, or the earlier-history Baa yield spread proxy, exceeds 110% of its trailing 36-month median and has widened over three months; the model then halves the risk-asset allocation.", 7.0, INK, leading=8.6),
         Spacer(1, 2),
         text("4. <b>Momentum and trend.</b> Rank current non-BIL holdings by return from 12 months ago to one month ago; the rank multiplier ranges from 0.75 to 1.25. Move each ETF below its 200-day moving average to BIL, using the 10-month average only when daily history is insufficient.", 7.0, INK, leading=8.6),
         Spacer(1, 2),
@@ -440,69 +440,80 @@ def _template_text(season: str) -> str:
     return ", ".join(parts)
 
 
-def season_sleeves() -> Table:
-    selection = (
-        "<b>Strategic season sleeves</b><br/>"
-        f"<b>Spring:</b> {_template_text('SPRING')}.<br/>"
-        f"<b>Summer:</b> {_template_text('SUMMER')}.<br/>"
-        f"<b>Fall:</b> {_template_text('FALL')}.<br/>"
-        f"<b>Winter:</b> {_template_text('WINTER')}."
+def season_allocations() -> Table:
+    rationale = {
+        "SPRING": (
+            "SPY supplies broad equity exposure; QQQ and SMH add growth and technology; "
+            "IWM and XHB add domestic cyclical and housing exposure; HYG and LQD add credit; "
+            "IEF adds duration; GLD diversifies the allocation."
+        ),
+        "SUMMER": (
+            "XLE, XLB, XLI, VLUE, IWM and EEM target a reflationary expansion. DBC, CPER "
+            "and GLD add commodity exposure, while TIP adds inflation-linked bonds."
+        ),
+        "FALL": (
+            "GLD, DBC, XLE and TIP target inflation and real assets; UUP adds dollar exposure; "
+            "XLP, XLU and XLV add defensive equities; SHY and BIL keep duration short."
+        ),
+        "WINTER": (
+            "TLT, IEF and SHY add Treasury duration; USMV, XLP and XLV favor defensive "
+            "equities; GLD, FXY and FXF add safe-haven exposure; BIL holds cash."
+        ),
+    }
+    intro = (
+        "<b>How the ETFs and starting weights were set</b><br/>"
+        "ETF choice follows each asset's economic role. The exact percentages are fixed portfolio-design "
+        "choices rather than model estimates. The main expression of a season carries 12.5%-20%, most "
+        "supporting exposures carry 10%, and narrower diversifiers carry 5%-7.5%."
     )
-    use = (
-        "<b>How the sleeves are used</b><br/>"
-        "ETF membership follows the economic exposures in section 1: growth, technology and credit in Spring; cyclicals and inflation hedges in Summer; real assets and defensives in Fall; Treasuries, defensives and safe-haven assets in Winter. The percentages are standing strategic starting weights; monthly returns do not re-estimate them.<br/>"
-        "At each month-end, assets without enough price history are removed and the remaining weights are rescaled. Each sleeve is averaged with a trailing 36-month inverse-volatility version. The four sleeves are then combined using the current season weights before the liquidity and portfolio controls are applied."
-    )
+    season_colors = {
+        "SPRING": SPRING,
+        "SUMMER": SUMMER,
+        "FALL": FALL,
+        "WINTER": WINTER,
+    }
+    cards = {}
+    for season in V3.SEASONS:
+        cards[season] = [
+            text(season.title(), 6.8, season_colors[season], bold=True, leading=8.0),
+            Spacer(1, 1.5),
+            text(rationale[season], 6.15, INK, leading=7.35),
+            Spacer(1, 2),
+            text(
+                f"<b>Starting weights:</b> {_template_text(season)}",
+                6.0,
+                MUTED,
+                leading=7.2,
+            ),
+        ]
+    rows = [
+        [text(intro, 6.55, INK, leading=8.0), ""],
+        [cards["SPRING"], cards["SUMMER"]],
+        [cards["FALL"], cards["WINTER"]],
+    ]
     table = Table(
-        [[text(selection, 6.7, INK, leading=8.2), text(use, 6.8, INK, leading=8.4)]],
+        rows,
         colWidths=[CONTENT_WIDTH / 2.0] * 2,
     )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), SOFT),
-                ("BOX", (0, 0), (-1, -1), 0.5, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ]
-        )
-    )
-    return table
-
-
-def limitations_box() -> Table:
-    left = (
-        "<b>Historical inputs</b><br/>"
-        "ALFRED decision-date histories are used for CPIAUCSL, INDPRO, PAYEMS and M2SL. The remaining FRED inputs use coded publication delays applied to latest-revised histories. "
-        "Yahoo adjusted prices provide traded returns. Mutual funds and gold futures extend selected ETF histories before inception."
-    )
-    right = (
-        "<b>Liquidity data limitation</b><br/>"
-        "FRED reports reverse repos in billions of dollars and the Fed balance sheet and Treasury General Account in millions. The current historical calculation does not rescale reverse repos before subtraction, which understates that term. "
-        "Any correction will change the historical liquidity readings, so previous and corrected results should be reported separately."
-    )
-    table = Table(
-        [[text(left, 6.9, INK, leading=8.6), text(right, 6.9, INK, leading=8.6)]],
-        colWidths=[CONTENT_WIDTH / 2.0] * 2,
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), SOFT_BLUE),
-                ("BOX", (0, 0), (-1, -1), 0.5, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ]
-        )
-    )
+    style = [
+        ("SPAN", (0, 0), (-1, 0)),
+        ("BACKGROUND", (0, 0), (-1, 0), SOFT_BLUE),
+        ("BACKGROUND", (0, 1), (-1, -1), SOFT),
+        ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+        ("INNERGRID", (0, 1), (-1, -1), 0.5, LINE),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+        ("LINEBEFORE", (0, 1), (0, 1), 2.0, SPRING),
+        ("LINEBEFORE", (1, 1), (1, 1), 2.0, SUMMER),
+        ("LINEBEFORE", (0, 2), (0, 2), 2.0, FALL),
+        ("LINEBEFORE", (1, 2), (1, 2), 2.0, WINTER),
+    ]
+    table.setStyle(TableStyle(style))
     return table
 
 
@@ -622,15 +633,11 @@ def build_pdf(data: dict[str, pd.DataFrame]) -> None:
     )
     story.extend([intro, Spacer(1, 9)])
 
-    story.extend([section_heading("1", "The four seasons"), Spacer(1, 4), season_table(), Spacer(1, 9)])
-    story.extend([section_heading("2", "Data used for each pillar"), Spacer(1, 4), pillar_cards(), Spacer(1, 9)])
-    story.extend([section_heading("3", "From month-end data to next month's portfolio"), Spacer(1, 4), monthly_process(), Spacer(1, 7)])
-    story.extend([
-        section_heading("4", "Season portfolio templates"),
-        Spacer(1, 4),
-        season_sleeves(),
-        PageBreak(),
-    ])
+    story.extend([section_heading("1", "The four seasons"), Spacer(1, 4), season_table(), Spacer(1, 6)])
+    story.extend([section_heading("2", "Data used for each pillar"), Spacer(1, 4), pillar_cards(), Spacer(1, 6)])
+    story.extend([section_heading("3", "From month-end data to next month's portfolio"), Spacer(1, 4), monthly_process(), Spacer(1, 4)])
+    story.extend([probability_note(), Spacer(1, 4)])
+    story.append(PageBreak())
 
     story.extend(
         page_header(
@@ -640,19 +647,21 @@ def build_pdf(data: dict[str, pd.DataFrame]) -> None:
         )
     )
     story.extend([
+        section_heading("4", "Season allocations"),
+        Spacer(1, 4),
+        season_allocations(),
+        Spacer(1, 6),
         section_heading("5", "Portfolio construction"),
         Spacer(1, 4),
         portfolio_comparison(),
-        Spacer(1, 8),
+        Spacer(1, 6),
         section_heading("6", "Walk-forward research design"),
         Spacer(1, 4),
         historical_test_design(),
-        Spacer(1, 6),
-        section_heading("7", "Risk limits and data notes"),
+        Spacer(1, 5),
+        section_heading("7", "Risk limits and trading costs"),
         Spacer(1, 4),
         risk_controls(),
-        Spacer(1, 6),
-        limitations_box(),
         Spacer(1, 4),
     ])
     PDF_OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -670,13 +679,12 @@ def validate_pdf() -> None:
         "The four seasons",
         "Data used for each pillar",
         "From month-end data to next month's portfolio",
-        "Season portfolio templates",
+        "Season allocations",
         "Portfolio construction",
         "LONG-ONLY PORTFOLIO",
         "L/S PORTFOLIO",
         "Walk-forward research design",
-        "Risk limits and data notes",
-        "Liquidity data limitation",
+        "Risk limits and trading costs",
     ]
     missing = [phrase for phrase in required if phrase not in extracted]
     if missing:
@@ -705,6 +713,9 @@ def validate_pdf() -> None:
         "V3 ",
         "V4 ",
         "H1 through H8",
+        "sleeve",
+        "Historical inputs",
+        "Liquidity data limitation",
     ]
     found = [phrase for phrase in prohibited if phrase.lower() in extracted.lower()]
     if found:
