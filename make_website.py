@@ -54,10 +54,22 @@ SEASON_GUIDANCE = {
     "WINTER": "Treasuries, quality, defensive equities and gold",
 }
 SEASON_CARDS = [
-    ("SPRING", "Recovery", "Growth rising / inflation cooling", "Broad equities, technology, credit"),
-    ("SUMMER", "Expansion", "Growth rising / inflation heating", "Cyclicals, commodities, emerging markets"),
-    ("FALL", "Stagflation", "Growth falling / inflation heating", "Gold, inflation hedges, cash"),
-    ("WINTER", "Downturn", "Growth falling / inflation cooling", "Treasuries, defensives, gold"),
+    (
+        "SPRING", "Recovery", "Growth up, inflation cooling",
+        "Broad stocks, tech, corporate credit, housing", "2003, 2023",
+    ),
+    (
+        "SUMMER", "Boom", "Growth up, inflation heating",
+        "Energy, industrials, commodities, emerging markets", "2006-07, 2021",
+    ),
+    (
+        "FALL", "Stagflation", "Growth down, inflation heating",
+        "Gold, commodities, inflation-linked bonds, cash", "early 2008, 2022",
+    ),
+    (
+        "WINTER", "Downturn", "Growth down, inflation cooling",
+        "Treasury bonds, defensive stocks, gold", "2001-02, 2008, 2020",
+    ),
 ]
 
 
@@ -85,6 +97,9 @@ def load_data() -> dict[str, object]:
     execution_summary = pd.read_csv(
         EXPORTS / "macro_seasons_v4_execution_summary.csv"
     ).set_index("series")
+    execution_ledger = pd.read_csv(
+        EXPORTS / "macro_seasons_v4_execution_ledger.csv", parse_dates=["return_date"]
+    ).set_index("return_date")
     execution_costs = pd.read_csv(
         EXPORTS / "macro_seasons_v4_execution_cost_summary.csv"
     ).set_index("cost_component")
@@ -103,20 +118,28 @@ def load_data() -> dict[str, object]:
         "execution_positions": execution_positions,
         "execution_tsmom": execution_tsmom,
         "execution_summary": execution_summary,
+        "execution_ledger": execution_ledger,
         "execution_costs": execution_costs,
         "execution_manifest": execution_manifest,
     }
 
 
-def monthly_rows(strategy_log: pd.Series, ledger: pd.DataFrame) -> tuple[str, float]:
-    returns = (np.exp(strategy_log) - 1.0).dropna()
-    spy = np.exp(ledger["spy_return"]) - 1.0
+def monthly_rows(
+    strategy: pd.Series,
+    spy_log: pd.Series,
+    *,
+    strategy_is_log: bool,
+    start_year: int,
+) -> tuple[str, float]:
+    returns = (np.exp(strategy) - 1.0 if strategy_is_log else strategy).dropna()
+    spy = np.exp(spy_log) - 1.0
     month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     html_rows: list[str] = []
     full_years: list[float] = []
-    for year, group in returns.groupby(returns.index.year):
+    for year in range(start_year, int(returns.index.max().year) + 1):
+        group = returns.loc[returns.index.year == year]
         values = {date.month: float(value) * 100.0 for date, value in group.items()}
-        ytd = float(((1.0 + group).prod() - 1.0) * 100.0)
+        ytd = float(((1.0 + group).prod() - 1.0) * 100.0) if len(group) else np.nan
         if len(group) == 12:
             full_years.append(ytd)
         cells: list[str] = []
@@ -133,11 +156,13 @@ def monthly_rows(strategy_log: pd.Series, ledger: pd.DataFrame) -> tuple[str, fl
         spy_year = spy.loc[spy.index.year == year]
         spy_ytd = float(((1.0 + spy_year).prod() - 1.0) * 100.0) if len(spy_year) else np.nan
         spy_text = f"{spy_ytd:+.1f}" if np.isfinite(spy_ytd) else "&ndash;"
+        ytd_text = f"{ytd:+.1f}" if np.isfinite(ytd) else "&ndash;"
         html_rows.append(
-            f"<tr><td>{year}</td>{''.join(cells)}<td class='ytd'>{ytd:+.1f}</td>"
+            f"<tr><td>{year}</td>{''.join(cells)}<td class='ytd'>{ytd_text}</td>"
             f"<td class='spy'>{spy_text}</td></tr>"
         )
-    return "".join(html_rows), float(np.mean(full_years))
+    average_year = float(np.mean(full_years)) if full_years else np.nan
+    return "".join(html_rows), average_year
 
 
 def equity_svg(long_only: pd.DataFrame, ensemble: pd.DataFrame,
@@ -237,6 +262,7 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     execution_positions = data["execution_positions"].copy()
     execution_tsmom = data["execution_tsmom"].copy()
     execution_summary = data["execution_summary"]
+    execution_ledger = data["execution_ledger"]
     execution_costs = data["execution_costs"]
     execution_manifest = data["execution_manifest"]
 
@@ -276,8 +302,9 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     )
     season_rows = "".join(
         f"<div class='season-row'><div class='season-name' style='color:{SEASON_COLORS[season]}'>{season.title()}</div>"
-        f"<div><b>{label}</b><span>{definition}</span></div><div>{assets}</div></div>"
-        for season, label, definition, assets in SEASON_CARDS
+        f"<div><b>{label}</b><span>{definition}</span></div>"
+        f"<div class='season-assets'>{assets}<span>e.g. {examples}</span></div></div>"
+        for season, label, definition, assets, examples in SEASON_CARDS
     )
 
     max_weight = max(float(allocation["weight_pct"].max()), 1.0)
@@ -291,6 +318,9 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
             f"<div class='weight'>{float(row.weight_pct):.2f}%</div></div>"
         )
     defensive_weight = float(allocation.loc[allocation["ticker"].isin(DEFENSIVE), "weight_pct"].sum())
+    long_only_bil_weight = float(
+        allocation.loc[allocation["ticker"].eq("BIL"), "weight_pct"].sum()
+    )
     core_weight = float(ensemble_state["weight_seasons_core_lev"]) * 100.0
     long_weight = float(ensemble_state["weight_long_only_lev"]) * 100.0
     tsmom_weight = float(ensemble_state["weight_tsmom"]) * 100.0
@@ -303,6 +333,7 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     margin_debit = float(execution_meta["margin_debit_weight"]) * 100.0
     short_collateral = float(execution_meta["short_collateral_weight"]) * 100.0
     regt_reference_buffer = float(execution_meta["regt_reference_buffer"]) * 100.0
+    netted_bil_weight = float(execution_meta["netted_bil_weight"]) * 100.0
 
     execution_rows: list[str] = []
     for row in execution_positions.sort_values("target_weight", ascending=False).itertuples():
@@ -341,8 +372,19 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     short_net_bps = borrow_bps - short_credit_bps
     roll_bps = float(execution_costs.loc["futures_roll_cost", "average_annual_bps"])
     svg, payload = equity_svg(long_only, ensemble, timeline)
-    tbody, average_year = monthly_rows(long_only["strategy_return"], long_only)
-    first_year = int(long_only.index.min().year)
+    returns_start_year = 2007
+    long_only_tbody, long_only_average_year = monthly_rows(
+        long_only["strategy_return"],
+        long_only["spy_return"],
+        strategy_is_log=True,
+        start_year=returns_start_year,
+    )
+    ls_tbody, ls_average_year = monthly_rows(
+        execution_ledger["net_return"],
+        long_only["spy_return"],
+        strategy_is_log=False,
+        start_year=returns_start_year,
+    )
     month_headers = "".join(f"<th>{month}</th>" for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
     chart_script = """(function(){
 const D=__PAYLOAD__,svg=document.getElementById('eqchart'),tip=document.getElementById('eqtip'),xh=svg.querySelector('#xh');
@@ -359,6 +401,22 @@ svg.addEventListener('mousemove',function(e){
 });
 svg.addEventListener('mouseleave',function(){tip.style.display='none';xh.style.display='none'});
 })();""".replace("__PAYLOAD__", payload)
+    returns_script = """(function(){
+const buttons=Array.from(document.querySelectorAll('[data-return-view]'));
+const panels=Array.from(document.querySelectorAll('[data-return-panel]'));
+buttons.forEach(function(button){button.addEventListener('click',function(){
+  const target=button.getAttribute('data-return-view');
+  buttons.forEach(function(item){
+    const selected=item===button;
+    item.classList.toggle('selected',selected);
+    item.setAttribute('aria-selected',selected?'true':'false');
+  });
+  panels.forEach(function(panel){
+    const selected=panel.getAttribute('data-return-panel')===target;
+    panel.hidden=!selected;
+  });
+});});
+})();"""
 
     return f"""<!doctype html><html lang='en'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
@@ -379,11 +437,13 @@ section{{padding:30px 0;border-bottom:1px solid var(--line)}}h2{{margin:0;color:
 .legend{{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;color:var(--muted);font-size:11px}}.legend i{{display:inline-block;width:17px;border-top:2px solid;margin-right:6px;vertical-align:middle}}.legend .dash{{border-top-style:dashed}}svg{{display:block;width:100%;height:auto}}.gridline{{stroke:rgba(255,255,255,.065)}}.axis{{fill:#77818f;font-size:10px}}.season-key{{display:flex;gap:14px;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}.season-key i{{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}}.tip{{position:absolute;display:none;pointer-events:none;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:#090c10;color:var(--text);font-size:11px;white-space:nowrap;z-index:2}}.chart-wrap{{position:relative}}
 .allocation-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 38px}}.allocation-row{{display:grid;grid-template-columns:142px 1fr 62px;gap:10px;align-items:center;padding:6px 0}}.asset b{{display:block;color:var(--ink);font-size:12px}}.asset span{{display:block;color:var(--muted);font-size:10px}}.bar{{height:8px;background:#090c10;border:1px solid rgba(255,255,255,.05);overflow:hidden}}.bar i{{display:block;height:100%}}.bar .risk{{background:var(--green)}}.bar .defensive{{background:#6485b6}}.weight{{text-align:right;color:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}}
 .exec-summary{{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin:15px 0 20px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}}.exec-summary div{{background:var(--surface);padding:14px}}.exec-summary span,.cost-item span{{display:block;color:var(--muted);font-size:9.5px;text-transform:uppercase}}.exec-summary b,.cost-item b{{display:block;color:var(--ink);font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}}.exec-grid{{display:grid;grid-template-columns:1fr 1fr;gap:0 34px}}.exec-row{{display:grid;grid-template-columns:1fr 58px 65px;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.045)}}.exec-row div b{{display:block;color:var(--ink);font-size:11.5px}}.exec-row div span{{display:block;color:var(--muted);font-size:9.5px}}.exec-row strong{{text-align:right;color:var(--ink);font-size:11.5px;font-variant-numeric:tabular-nums}}.side{{font-size:8.5px;font-weight:750;text-align:center;padding:2px 4px;border:1px solid var(--line);border-radius:3px}}.side.long{{color:#65c99a}}.side.short,.side.borrow{{color:#eb846c}}.side.cash{{color:#82a9df}}.cost-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 4px}}.cost-item{{padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--surface2)}}.cost-item small{{display:block;color:var(--muted);font-size:9.5px;margin-top:2px}}td.long{{color:#65c99a}}td.short{{color:#eb846c}}
+.netting-note{{display:grid;grid-template-columns:150px 1fr;gap:20px;margin:-4px 0 18px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}}.netting-note b{{color:var(--ink);font-size:12px}}.netting-note p{{margin:0;color:var(--muted);font-size:11.5px}}
 .table-wrap{{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:6px}}table{{width:100%;border-collapse:collapse;font-size:10.5px;font-variant-numeric:tabular-nums}}th{{position:sticky;top:0;background:var(--surface);color:var(--muted);font-size:9.5px;text-align:right;padding:5px;border-bottom:1px solid var(--line)}}th:first-child,td:first-child{{text-align:left}}td{{padding:4px 5px;text-align:right;color:var(--ink);border-bottom:1px solid rgba(255,255,255,.035)}}td:first-child{{color:var(--text);font-weight:650}}td.ytd{{border-left:1px solid var(--line);font-weight:700}}td.spy{{color:var(--muted)}}td.na{{color:#3e4652}}
+.returns-head{{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:14px}}.segmented{{display:inline-grid;grid-template-columns:1fr 1fr;padding:3px;border:1px solid var(--line);border-radius:6px;background:var(--surface2)}}.segmented button{{min-width:104px;border:0;border-radius:4px;padding:7px 11px;background:transparent;color:var(--muted);font:600 11px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}}.segmented button.selected{{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}}.return-panel[hidden]{{display:none}}
 details{{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}}summary{{cursor:pointer;color:var(--text);font-size:12px}}details p{{max-width:880px;color:var(--muted);font-size:11.5px}}
 footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color:var(--muted);font-size:10.5px;flex-wrap:wrap}}a{{color:var(--text)}}
 @media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid,.exec-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.exec-summary{{grid-template-columns:1fr 1fr}}.cost-grid{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
-@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}}}
+@media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}.netting-note{{grid-template-columns:1fr;gap:4px}}.returns-head{{align-items:stretch;flex-direction:column}}.segmented{{width:100%}}.segmented button{{min-width:0}}}}
 </style></head><body><main>
 <nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}</div></nav>
 
@@ -393,15 +453,15 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='current'><div class='current-label'>{effective_month} long-only positioning</div><div class='current-season'>{modal.title()}</div>
 <p>Current emphasis: {SEASON_GUIDANCE[modal]}.</p><small>Signal date {as_of:%B %d, %Y} &middot; confidence gap {float(latest['confidence']):.1%}</small></div></div>
 
-<section><div class='section-head'><div><h2>Two strategies, reported separately</h2><p class='sub'>Historical point-in-time simulation after costs. These are research backtests, not a live record.</p></div><div class='stamp'>{years:.1f} years &middot; monthly</div></div>
-<div class='tracks'>{metric_block('Long-only season portfolio', long_stats, LONG_ONLY_COLOR)}{metric_block('Multi-strategy leveraged ensemble', ensemble_stats, ENSEMBLE_COLOR)}</div>
+<section><h2>How the seasons are defined</h2><p class='sub'>Growth and inflation define the four quadrants. Liquidity affects probabilities and risk intensity; it does not silently redefine the labels. Historical examples are illustrative episodes, not training labels.</p><div class='definitions'>{season_rows}</div>
+<details><summary>Signals and source data</summary><p><b>Growth:</b> point-in-time industrial production, payrolls and jobless claims, confirmed by market growth/risk proxies. <b>Inflation:</b> point-in-time CPI, breakevens and oil. <b>Liquidity:</b> point-in-time M2 plus Fed liquidity, financial conditions and credit spreads. Monthly macro series use FRED/ALFRED release vintages; ETF prices come from Yahoo Finance. Each pillar uses trailing transformations calculated only with observations available on that decision date.</p></details></section>
+
+<section><div class='section-head'><div><h2>Long Only and L/S Portfolio</h2></div><div class='stamp'>{years:.1f} years &middot; monthly</div></div>
+<div class='tracks'>{metric_block('Long-only season portfolio', long_stats, LONG_ONLY_COLOR)}{metric_block('L/S portfolio', ensemble_stats, ENSEMBLE_COLOR)}</div>
 <div class='portfolio-note'><div><h3>Long-only season portfolio</h3><p>The exact investable ETF mix shown below. It blends the four season allocations, then applies real-rate, credit, momentum, trend and volatility controls. Weights sum to 100%.</p></div>
-<div><h3>Leveraged ensemble</h3><p>A separate research strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its physical, costed IBKR implementation is reported separately below.</p></div></div>
+<div><h3>L/S portfolio</h3><p>A separate strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% long/short trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its physical, costed IBKR implementation is reported separately below.</p></div></div>
 <div class='integrity'><div><span>Input freshness</span><b>{audit_pass}/{audit_total} PASS</b></div><div><span>ALFRED vintages</span><b>{alfred_pass}/4 PASS</b></div><div><span>Live monitor</span><b class='{monitor_class}'>{monitor_label}</b></div><div><span>First live return</span><b>Sep 30, 2026</b></div></div>
 <details><summary>Data integrity and live-monitor definition</summary><p>V4 refreshes every FRED and Yahoo cache before each monthly run. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage actually available at each historical month-end. The model was frozen on August 20, 2026; the August 31 decision is the first fully post-freeze signal and its September 30 realized return is the first live observation. Current monitor status: {html.escape(monitor_detail)}.</p></details></section>
-
-<section><h2>How the seasons are defined</h2><p class='sub'>Growth and inflation define the four quadrants. Liquidity affects probabilities and risk intensity; it does not silently redefine the labels.</p><div class='definitions'>{season_rows}</div>
-<details><summary>Signals and source data</summary><p><b>Growth:</b> point-in-time industrial production, payrolls and jobless claims, confirmed by market growth/risk proxies. <b>Inflation:</b> point-in-time CPI, breakevens and oil. <b>Liquidity:</b> point-in-time M2 plus Fed liquidity, financial conditions and credit spreads. Monthly macro series use FRED/ALFRED release vintages; ETF prices come from Yahoo Finance. Each pillar uses trailing transformations calculated only with observations available on that decision date.</p></details></section>
 
 <section><h2>Growth of $1</h2><p class='sub'>Log scale &middot; historical PIT simulation after modeled trading costs</p><div class='legend'><span><i style='border-color:{ENSEMBLE_COLOR}'></i>Leveraged ensemble</span><span><i style='border-color:{LONG_ONLY_COLOR}'></i>Long-only season portfolio</span><span><i style='border-color:{SPY_COLOR}'></i>S&amp;P 500</span><span><i class='dash' style='border-color:{B6040_COLOR}'></i>60/40</span></div>
 <div class='chart-wrap'>{svg}<div class='tip' id='eqtip'></div></div><div class='season-key'><span><i style='background:{SEASON_COLORS['SPRING']}'></i>Spring</span><span><i style='background:{SEASON_COLORS['SUMMER']}'></i>Summer</span><span><i style='background:{SEASON_COLORS['FALL']}'></i>Fall</span><span><i style='background:{SEASON_COLORS['WINTER']}'></i>Winter</span><span style='margin-left:auto'>strip = monthly modal season</span></div>
@@ -411,16 +471,19 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 
 <section id='execution'><div class='section-head'><div><h2>Executable leveraged portfolio for {effective_month}</h2><p class='sub'>Aggregated and netted ETF positions &middot; USD 1 million reference NAV &middot; IBKR Pro Fixed assumptions</p></div><div class='stamp'>Model target, not a broker order</div></div>
 <div class='exec-summary'><div><span>Gross exposure</span><b>{gross_exposure:.1f}%</b></div><div><span>Net exposure</span><b>{net_exposure:.1f}%</b></div><div><span>Gross shorts</span><b>{short_exposure:.1f}%</b></div><div><span>Economic cash / borrow</span><b>{cash_weight:+.1f}%</b></div><div><span>Margin debit</span><b>{margin_debit:.1f}%</b></div><div><span>Short collateral</span><b>{short_collateral:.1f}%</b></div><div><span>PM pre-trade check</span><b class='review'>Required</b></div></div>
+<div class='netting-note'><b>Why BIL is absent</b><p>BIL remains {long_only_bil_weight:.1f}% of the separate long-only portfolio. In the aggregated L/S book, {netted_bil_weight:.1f}% of raw BIL exposure is sold first and used to reduce the margin debit. Holding BIL while borrowing at IBKR's higher margin rate would be a negative-carry round trip. This is financing netting, not a change to the Summer season allocation.</p></div>
 <div class='exec-grid'>{''.join(execution_rows)}</div>
 <div class='cost-grid'><div class='cost-item'><span>Costed CAGR</span><b>{execution_stats['cagr_pct']:.2f}%</b><small>2008&ndash;2026 executable window</small></div><div class='cost-item'><span>Trading</span><b>{trading_bps:.1f} bp/yr</b><small>commission, regulatory fees and 1 bp slippage</small></div><div class='cost-item'><span>Margin financing</span><b>{financing_bps:.1f} bp/yr</b><small>benchmark plus IBKR tiers</small></div><div class='cost-item'><span>Net short carry</span><b>{short_net_bps:.1f} bp/yr</b><small>{borrow_bps:.1f} borrow less {short_credit_bps:.1f} proceeds credit</small></div></div>
 <p class='sub'>IBKR segregates short-sale proceeds, so the {cash_weight:+.1f}% economic cash balance is decomposed into a {margin_debit:.1f}% long-financing debit and {short_collateral:.1f}% of marked short collateral. This is configured for Portfolio Margin: the {regt_reference_buffer:.1f}% Reg T-equivalent buffer is retained only as a reference, while actual eligibility requires the complete target to pass IBKR's live Check Margin with at least a 20% projected cushion. The frozen return-level ensemble earned {execution_window_stats['cagr_pct']:.2f}% over the same executable window. Physical accounting before explicit IBKR costs earned {execution_summary.loc['Executable physical accounting before explicit IBKR costs', 'cagr_pct']:.2f}%; after commissions, regulatory fees, slippage, margin, borrow and short-proceeds interest it earned {execution_stats['cagr_pct']:.2f}%, with {execution_stats['ann_vol_pct']:.2f}% volatility and {execution_stats['max_dd_pct']:.2f}% maximum drawdown. Direct futures roll cost is {roll_bps:.1f} bp because the current portfolio holds ETFs, not futures.</p>
 <details><summary>Exact TSMOM long and short sleeve</summary><p>The unaggregated trend sleeve is {tsmom_gross:.1f}% gross and {tsmom_net:+.1f}% net before its ensemble weight. A positive position means the ETF beat BIL over the trailing 12 months; a negative position means it lagged BIL.</p><div class='table-wrap'><table><thead><tr><th>Ticker</th><th>Side</th><th>12m excess</th><th>36m vol</th><th>Sleeve weight</th></tr></thead><tbody>{tsmom_rows}</tbody></table></div></details>
 <details><summary>IBKR assumptions, limits and downloadable artifacts</summary><p>IBKR Pro Fixed: USD 0.005/share, USD 1 minimum and 1% order-value cap, plus published US regulatory fees. Positive free USD cash: benchmark minus 0.50%, with no interest on the first USD 10,000. Long financing: published benchmark-plus tiers starting at +1.50%. Short collateral is marked at 102%; the first USD 100,000 earns no proceeds interest and higher tiers earn benchmark minus the published spread. Historical borrow data is unavailable, so every liquid ETF short is conservatively charged 1.00% annually and must pass a live SLB check before trading. Hard limits: 175% gross, 150% net, 35% gross shorts, 25% per non-cash ETF and 50% maximum margin debit. Portfolio Margin is risk-based and broker-calculated; no public static formula can replace its live whole-book margin preview. <a href='macro_seasons_v4_execution_current_positions.csv'>positions CSV</a> &middot; <a href='macro_seasons_v4_execution_current_tsmom.csv'>TSMOM CSV</a> &middot; <a href='macro_seasons_v4_execution_summary.csv'>performance CSV</a> &middot; <a href='macro_seasons_v4_execution_pm_pretrade_check.csv'>PM check CSV</a> &middot; <a href='macro_seasons_v4_execution_assumptions.csv'>assumptions CSV</a>.</p></details></section>
 
-<section><h2>Long-only monthly returns since {first_year}</h2><p class='sub'>Percent per month after costs &middot; average completed calendar year {average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{tbody}</tbody></table></div></section>
+<section id='monthly-returns'><div class='returns-head'><div><h2>Monthly returns from {returns_start_year}</h2></div><div class='segmented' role='tablist' aria-label='Monthly return series'><button class='selected' type='button' role='tab' aria-selected='true' data-return-view='long-only'>Long only</button><button type='button' role='tab' aria-selected='false' data-return-view='ls'>L/S portfolio</button></div></div>
+<div class='return-panel' data-return-panel='long-only'><p class='sub'>Long-only portfolio &middot; percent per month after costs &middot; average completed calendar year {long_only_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{long_only_tbody}</tbody></table></div></div>
+<div class='return-panel' data-return-panel='ls' hidden><p class='sub'>IBKR-costed executable L/S portfolio &middot; physical history begins January 2008, so 2007 is intentionally blank &middot; average completed calendar year {ls_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{ls_tbody}</tbody></table></div></div></section>
 
 <footer><div>Frozen V4 rules and PIT rerun: August 20, 2026 &middot; research, not investment advice &middot; <a href='macro_seasons_v4_onepager.pdf'>method summary (PDF)</a></div><div>&copy; 2026 newsixtyforty.com</div></footer>
-<script>{chart_script}</script>
+<script>{chart_script}{returns_script}</script>
 </main></body></html>"""
 
 
