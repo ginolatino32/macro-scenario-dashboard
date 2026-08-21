@@ -189,24 +189,27 @@ def pillar_cards() -> Table:
     cards = [
         (
             "GROWTH",
-            "Is activity gaining or losing momentum?",
-            "Industrial production and payrolls use ALFRED vintages. Jobless claims use an explicit release lag. "
-            "Cyclical versus defensive equities and equities versus intermediate Treasuries confirm the reading.",
-            "Main windows: 3 to 6 months",
+            "Data and source",
+            "<b>ALFRED:</b> Industrial Production (INDPRO) and Nonfarm Payrolls (PAYEMS).<br/>"
+            "<b>FRED:</b> Initial Jobless Claims (ICSA).<br/>"
+            "<b>Yahoo Finance:</b> XLI, XLP, SPY and IEF adjusted prices.",
+            "Changes used: industrial production over 6m; payrolls over 3m; claims over 3m (falling claims count as stronger growth); XLI versus XLP and SPY versus IEF over 6m.",
         ),
         (
             "INFLATION",
-            "Is inflation pressure building or cooling?",
-            "CPI momentum uses ALFRED vintages. Five-year breakevens and oil use release-lagged FRED data. "
-            "TIPS relative to nominal Treasuries adds market confirmation.",
-            "Main windows: 3 to 12 months",
+            "Data and source",
+            "<b>ALFRED:</b> Consumer Price Index (CPIAUCSL).<br/>"
+            "<b>FRED:</b> Five-Year Breakeven Inflation (T5YIE) and WTI crude oil (DCOILWTICO).<br/>"
+            "<b>Yahoo Finance:</b> TIP and IEF adjusted prices.",
+            "Changes used: change in 12-month CPI inflation over 3m; breakeven inflation over 3m; WTI and TIP versus IEF over 6m.",
         ),
         (
             "LIQUIDITY",
-            "Are financial conditions adding or removing support?",
-            "M2 uses ALFRED vintages. Fed net liquidity, financial conditions, high-yield spreads and the "
-            "two-year yield use release-lagged FRED data to capture money, credit and policy conditions.",
-            "Role: changes risk intensity",
+            "Data and source",
+            "<b>ALFRED:</b> M2 money stock (M2SL).<br/>"
+            "<b>FRED:</b> NFCI, high-yield OAS, 2-year Treasury yield, Fed balance sheet, reverse repos and the Treasury General Account.",
+            "Changes used: NFCI level and 3m change; OAS 3m; M2 6m; 2-year yield 12m; Fed net liquidity 3m.<br/>"
+            "Portfolio effect: easier liquidity can move up to 15 points from defensive ETFs to risk ETFs; tighter liquidity can move up to 25 points the other way.",
         ),
     ]
     cells = []
@@ -242,67 +245,55 @@ def pillar_cards() -> Table:
 
 def monthly_process() -> Table:
     steps = [
-        ("1", "Cut the data", "Freeze the information available at the completed month-end."),
-        ("2", "Build the pillars", "Measure trailing change, standardize it against prior history and combine the sub-signals."),
-        ("3", "Set probabilities", "Growth and inflation distribute weight across all four seasons. No hard regime switch is required."),
-        ("4", "Adjust risk", "Liquidity, real rates, credit, momentum and trend alter the blended portfolio within fixed limits."),
-        ("5", "Trade next month", "Month-end weights govern the following calendar month's return. Turnover costs are charged."),
-        ("6", "Lock the record", "Later data and revisions cannot change an earlier decision in the prefix-causality tests."),
+        (
+            "1",
+            "Select the month-end data",
+            "Use macro releases available by that date and ETF adjusted prices through that date.",
+        ),
+        (
+            "2",
+            "Calculate three scores",
+            "Calculate each listed change. Set the sign so positive means stronger growth, higher inflation or easier liquidity. Compare each result with that series' previous 10 years, average the readings within each pillar and lightly smooth the average.",
+        ),
+        (
+            "3",
+            "Calculate four season weights",
+            "Stronger growth raises Spring and Summer; weaker growth raises Fall and Winter. Higher inflation raises Summer and Fall; lower inflation raises Spring and Winter. The four weights total 100%.",
+        ),
+        (
+            "4",
+            "Build next month's holdings",
+            "Blend the four fixed ETF sleeves using the season weights. Then apply the liquidity shift, gold-versus-Treasury adjustment, credit-spread cut, momentum tilt and 200-day trend check.",
+        ),
+        (
+            "5",
+            "Record next month's return",
+            "Keep those holdings for the following calendar month, charge turnover and financing costs, then repeat the process after the next month-end.",
+        ),
     ]
-    rows: list[list[list]] = [[], []]
-    for index, (number, title, body) in enumerate(steps):
-        rows[index // 3].append(
-            [
-                text(f"{number}. {title}", 7.5, NAVY, bold=True, leading=8.8),
-                Spacer(1, 2),
-                text(body, 6.8, MUTED, leading=8.3),
-            ]
-        )
-    table = Table(rows, colWidths=[CONTENT_WIDTH / 3.0] * 3)
+    rows = [
+        [
+            text(number, 7.2, WHITE, bold=True, align=TA_CENTER, leading=8.0),
+            text(title, 7.5, NAVY, bold=True, leading=8.8),
+            text(body, 6.9, MUTED, leading=8.5),
+        ]
+        for number, title, body in steps
+    ]
+    table = Table(rows, colWidths=[0.30 * inch, 1.65 * inch, CONTENT_WIDTH - 1.95 * inch])
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), WHITE),
+                ("BACKGROUND", (0, 0), (0, -1), TEAL),
                 ("BOX", (0, 0), (-1, -1), 0.5, LINE),
                 ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 5.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5.5),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
-    return table
-
-
-def causal_box(audit_pass: int, audit_total: int) -> Table:
-    body = (
-        "<b>Causal</b> has a narrow meaning in this research. A decision for the next month can depend only "
-        "on information available by the current month-end. Appending future observations must leave every "
-        "earlier signal, weight and return unchanged. The model does not claim that a macro pillar proves "
-        "economic causation."
-    )
-    data_note = (
-        "CPI, industrial production, payrolls and M2 use ALFRED vintages. Other FRED inputs use explicit "
-        "publication lags with latest-revised history. Yahoo adjusted prices supply the traded series. "
-        f"The latest production refresh passed {audit_pass}/{audit_total} freshness checks."
-    )
-    table = Table(
-        [[text(body, 7.2, INK, leading=9.1), text(data_note, 7.0, MUTED, leading=8.8)]],
-        colWidths=[CONTENT_WIDTH * 0.53, CONTENT_WIDTH * 0.47],
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), SOFT_BLUE),
-                ("LINEBEFORE", (0, 0), (0, 0), 2.3, TEAL),
-                ("LINEBEFORE", (1, 0), (1, 0), 0.6, LINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (0, -1), 0),
+                ("RIGHTPADDING", (0, 0), (0, -1), 0),
             ]
         )
     )
@@ -311,37 +302,20 @@ def causal_box(audit_pass: int, audit_total: int) -> Table:
 
 def probability_note() -> Table:
     reading = (
-        "<b>How to read a season percentage</b><br/>"
-        "The percentages are soft classification weights. A 31% Summer reading means the current growth and "
-        "inflation scores assign 31% of the season blend to Summer. It is not a calibrated 31% chance that a "
-        "future event will occur."
-    )
-    horizon = (
-        "<b>Time horizon and stability</b><br/>"
-        "The reading describes the macro state at the completed month-end and sets the next calendar month's "
-        "portfolio. It does not predict how long the season will last. A close top-two split keeps both sleeves "
-        "active instead of forcing a full switch."
-    )
-    calibration = (
-        "<b>Symmetric scoring</b><br/>"
-        "Each sub-signal is compared with its own trailing 10-year history after a minimum 36-month warm-up. "
-        "Extreme readings are capped and the pillar average receives light smoothing. Growth and inflation are "
-        "then mapped symmetrically, so no season receives a built-in advantage."
+        "<b>Reading the dashboard</b><br/>"
+        "The dashboard calls the four numbers season probabilities. The portfolio uses them as blend weights. "
+        "A 31% Summer reading puts 31% of the base allocation in the Summer ETF sleeve. Spring, Fall and Winter "
+        "receive the remaining 69% in their displayed proportions. The new weights take effect for the next calendar month."
     )
     table = Table(
-        [[
-            text(reading, 6.9, INK, leading=8.6),
-            text(horizon, 6.9, INK, leading=8.6),
-            text(calibration, 6.9, INK, leading=8.6),
-        ]],
-        colWidths=[CONTENT_WIDTH / 3.0] * 3,
+        [[text(reading, 7.2, INK, leading=9.0)]],
+        colWidths=[CONTENT_WIDTH],
     )
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FBF7EE")),
                 ("BOX", (0, 0), (-1, -1), 0.5, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("TOPPADDING", (0, 0), (-1, -1), 7),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
@@ -355,44 +329,44 @@ def probability_note() -> Table:
 
 def portfolio_comparison() -> Table:
     long_only = [
-        text("LONG-ONLY SEASON PORTFOLIO", 7.1, GOLD, bold=True, leading=8.2),
+        text("LONG-ONLY PORTFOLIO", 7.1, GOLD, bold=True, leading=8.2),
         Spacer(1, 3),
-        text("A fully funded ETF allocation designed to reduce drawdowns while retaining exposure to the active macro mix.", 8.0, NAVY, bold=True, leading=9.7),
+        text("Weights sum to 100%. The portfolio holds long ETF positions and BIL. It has no shorts or borrowing.", 8.0, NAVY, bold=True, leading=9.7),
         Spacer(1, 5),
-        text("1. Blend the four fixed season sleeves using the current probabilities.", 7.1, INK, leading=8.8),
+        text("1. <b>Season blend.</b> Combine the fixed Spring, Summer, Fall and Winter ETF weights using the four season weights.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("2. Combine each sleeve's economic weights with a trailing 36-month inverse-volatility tilt.", 7.1, INK, leading=8.8),
+        text("2. <b>Within each season.</b> Use Yahoo Finance adjusted prices to calculate each ETF's volatility over the previous 36 months. Average the fixed weights with weights that give less to high-volatility ETFs and more to low-volatility ETFs.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("3. Let liquidity shift a bounded share between risky and defensive assets.", 7.1, INK, leading=8.8),
+        text("3. <b>Liquidity.</b> Easier liquidity can move up to 15 percentage points from defensive ETFs to risk ETFs. Tighter liquidity can move up to 25 points the other way.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("4. Rotate the defensive sleeve between gold and nominal duration as real yields change.", 7.1, INK, leading=8.8),
+        text("4. <b>Real yields.</b> From FRED, use the 10-year Treasury yield (DGS10) and five-year breakeven inflation (T5YIE). When the six-month real-yield change is negative and breakeven inflation is flat or rising, move part of TLT and IEF to GLD. Every other non-zero real-yield change moves part of GLD to TLT and IEF. The move cannot exceed half of the source sleeve.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("5. Halve risky positions when credit spreads are both high and widening.", 7.1, INK, leading=8.8),
+        text("5. <b>Credit.</b> Use FRED high-yield OAS (BAMLH0A0HYM2); before its usable history, use Moody's Baa yield minus the 10-year Treasury yield. When the spread exceeds 110% of its previous 36-month median and has widened over three months, cut each risk ETF weight in half and move the released weight to defensive ETFs.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("6. Apply relative momentum measured from 12 months ago to one month ago, followed by the 200-day trend gate. Failed trend positions move to BIL.", 7.1, INK, leading=8.8),
+        text("6. <b>Momentum and trend.</b> Use Yahoo Finance adjusted prices. Rank non-cash holdings by return from 12 months ago to one month ago. Adjust each weight between 0.75 and 1.25 times its prior weight. Move any ETF below its 200-day moving average entirely to BIL.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("7. Target 10% volatility from trailing 24-month risk. Scaling can reduce exposure; this track does not borrow.", 7.1, INK, leading=8.8),
+        text("7. <b>Portfolio volatility.</b> Estimate volatility from the previous 24 months. When it exceeds 10%, reduce all ETF weights and place the difference in BIL. Exposure never rises above 100%.", 7.3, INK, leading=9.1),
         Spacer(1, 5),
-        text("Backtest cost: 10 basis points per unit of monthly turnover.", 6.5, GOLD, bold=True, leading=7.6),
+        text("Backtest trading cost: 10 basis points per unit of monthly turnover.", 6.5, GOLD, bold=True, leading=7.6),
     ]
     long_short = [
         text("L/S PORTFOLIO", 7.1, TEAL, bold=True, leading=8.2),
         Spacer(1, 3),
-        text("A separate 10% volatility strategy combining macro allocation with an independent trend-following return stream.", 8.0, NAVY, bold=True, leading=9.7),
+        text("The model combines three return streams, converts them into ETF positions, nets duplicate exposures, and charges modeled IBKR trading and financing costs.", 8.0, NAVY, bold=True, leading=9.7),
         Spacer(1, 5),
-        text("1. Start with a risk-scaled core season stream and a risk-scaled enhanced long-only stream.", 7.1, INK, leading=8.8),
+        text("1. <b>Core season stream.</b> Use the season blend and liquidity adjustment. Scale exposure between 0.5 and 1.5 times to target 10% volatility from the previous 24 months.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("2. Add time-series momentum across 13 liquid ETFs covering equities, rates, credit, real assets and currencies.", 7.1, INK, leading=8.8),
+        text("2. <b>Enhanced season stream.</b> Use the complete long-only process on the left, then allow the same 0.5 to 1.5 exposure range around a 10% volatility target.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("3. Hold an ETF long when its trailing 12-month return beats BIL and short when it trails BIL.", 7.1, INK, leading=8.8),
+        text("3. <b>Trend stream.</b> Use Yahoo Finance adjusted prices for SPY, QQQ, IWM, EFA, EEM, TLT, IEF, GLD, DBC, UUP, FXY, FXF and HYG. Hold an ETF long when its previous 12-month return beats BIL and short when it trails BIL.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("4. Size trend positions from trailing 36-month volatility and cap each position at 20% of the sleeve.", 7.1, INK, leading=8.8),
+        text("4. <b>Trend position size.</b> Use the previous 36 months of volatility. Lower-volatility ETFs receive larger positions. Each position is capped at 20% of the trend stream.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("5. Weight the three streams from their trailing 24-month volatility, shifted one month, then target 10% total volatility.", 7.1, INK, leading=8.8),
+        text("5. <b>Combine the streams.</b> Give more weight to streams with lower volatility over the previous 24 months. The volatility window ends one month before the new weights. Scale the combined portfolio between 0.5 and 1.5 times toward 10% volatility.", 7.3, INK, leading=9.1),
         Spacer(1, 2),
-        text("6. Aggregate duplicate ETF exposures, net longs against shorts, use BIL before margin borrowing and enforce gross, net, short and ticker limits.", 7.1, INK, leading=8.8),
+        text("6. <b>Create one position per ETF.</b> Add duplicate exposures from the three streams, cancel opposing long and short positions, and sell BIL before creating a USD margin debit.", 7.3, INK, leading=9.1),
         Spacer(1, 5),
-        text("Cost model: commissions, regulatory fees, 1 bp slippage, financing, stock borrow and interest on short proceeds.", 6.5, TEAL, bold=True, leading=7.6),
+        text("Costs: published IBKR Pro commissions, regulatory fees and financing tiers; 1 basis point of slippage; 1% annual short borrow; IBKR interest on short-sale collateral.", 6.5, TEAL, bold=True, leading=7.6),
     ]
     table = Table([[long_only, long_short]], colWidths=[CONTENT_WIDTH / 2.0] * 2)
     table.setStyle(
@@ -415,19 +389,21 @@ def portfolio_comparison() -> Table:
 
 def selection_and_walkforward() -> Table:
     selection = (
-        "<b>How the ETF sleeves were chosen</b><br/>"
-        "The season templates were set from economic exposure, liquidity and trading history. They were not "
-        "selected by maximizing returns in the same season samples. Equity beta and cyclicals express growth; "
-        "Treasuries and defensive equities express slowdown; TIPS, commodities and gold express inflation; "
-        "BIL and major currencies provide defense or funding. Pre-inception mutual funds and futures extend "
-        "selected ETF histories and introduce basis risk."
+        "<b>Fixed ETF templates</b><br/>"
+        "<b>Spring:</b> SPY, QQQ, SMH, IWM, XHB, HYG, LQD, IEF, GLD.<br/>"
+        "<b>Summer:</b> XLE, XLB, XLI, VLUE, IWM, EEM, DBC, CPER, GLD, TIP.<br/>"
+        "<b>Fall:</b> GLD, DBC, XLE, TIP, UUP, XLP, XLU, XLV, SHY, BIL.<br/>"
+        "<b>Winter:</b> TLT, IEF, SHY, GLD, USMV, XLP, XLV, FXY, FXF, BIL.<br/>"
+        "The base weights were set from each ETF's economic exposure before the backtest. The code did not optimize those weights on season returns."
     )
     walkforward = (
-        "<b>What walk-forward means</b><br/>"
-        "At each month-end the model rebuilds the decision from that date's data, sets weights, and applies them "
-        "to the next month's returns. Rolling risk estimates and stream weights use prior months and are shifted "
-        "before use. Turnover and financing costs are charged as positions change. Prefix tests rerun the model "
-        "at earlier cutoffs and require the old path to match exactly."
+        "<b>Backtest timing</b><br/>"
+        "1. Use data available by the historical month-end.<br/>"
+        "2. Calculate the season scores and ETF weights.<br/>"
+        "3. Apply those weights to the following month's ETF returns.<br/>"
+        "4. Charge trading, borrowing and short-position costs for that month.<br/>"
+        "5. Repeat at the next month-end.<br/>"
+        "A separate check reruns the model through older cutoff dates. The signals and weights through each cutoff must match the full run."
     )
     table = Table(
         [[text(selection, 7.2, INK, leading=9.0), text(walkforward, 7.2, INK, leading=9.0)]],
@@ -450,43 +426,43 @@ def selection_and_walkforward() -> Table:
     return table
 
 
-def evidence_table(summary: pd.DataFrame, execution_summary: pd.DataFrame) -> Table:
+def backtest_coverage(summary: pd.DataFrame, execution_summary: pd.DataFrame) -> Table:
     long_row = summary.loc["Macro Seasons v4 long-only season portfolio"]
     ls_row = execution_summary.loc["IBKR-costed executable ensemble"]
-    spy_row = summary.loc["SPY"]
-    benchmark_row = summary.loc["60/40 SPY/AGG"]
-    rows = [
-        ["Historical simulation", "Window", "CAGR", "Volatility", "Excess Sharpe", "Max drawdown"],
-        ["Long-only season portfolio", "Jan 2000 - Jul 2026", f"{long_row['cagr_pct']:.2f}%", f"{long_row['ann_vol_pct']:.2f}%", f"{long_row['excess_sharpe']:.2f}", f"{long_row['max_dd_pct']:.2f}%"],
-        ["L/S portfolio after IBKR costs", "Jan 2007 - Jul 2026", f"{ls_row['cagr_pct']:.2f}%", f"{ls_row['ann_vol_pct']:.2f}%", f"{ls_row['excess_sharpe']:.2f}", f"{ls_row['max_dd_pct']:.2f}%"],
-        ["S&amp;P 500", "Jan 2000 - Jul 2026", f"{spy_row['cagr_pct']:.2f}%", f"{spy_row['ann_vol_pct']:.2f}%", f"{spy_row['excess_sharpe']:.2f}", f"{spy_row['max_dd_pct']:.2f}%"],
-        ["60/40 SPY/AGG", "Jan 2000 - Jul 2026", f"{benchmark_row['cagr_pct']:.2f}%", f"{benchmark_row['ann_vol_pct']:.2f}%", f"{benchmark_row['excess_sharpe']:.2f}", f"{benchmark_row['max_dd_pct']:.2f}%"],
-    ]
-    formatted = []
-    for row_index, row in enumerate(rows):
-        formatted.append(
-            [
-                text(str(cell), 6.6, WHITE if row_index == 0 else INK, bold=(row_index == 0 or column_index == 0), leading=7.8)
-                for column_index, cell in enumerate(row)
-            ]
-        )
+    long_only = (
+        "<b>Long-only</b><br/>"
+        "Monthly from January 2000 through July 2026. Month-end weights earn the following month's return. "
+        f"After the 10 bp turnover cost: CAGR {long_row['cagr_pct']:.2f}%, volatility {long_row['ann_vol_pct']:.2f}%, maximum drawdown {long_row['max_dd_pct']:.2f}%."
+    )
+    long_short = (
+        "<b>L/S physical portfolio</b><br/>"
+        "Monthly from January 2007 through July 2026. Includes the IBKR costs listed below. "
+        f"CAGR {ls_row['cagr_pct']:.2f}%, volatility {ls_row['ann_vol_pct']:.2f}%, maximum drawdown {ls_row['max_dd_pct']:.2f}%."
+    )
+    comparison = (
+        "<b>Why the website also shows 9.21%</b><br/>"
+        "That figure combines the three return streams before physical ETF netting and full IBKR costs. "
+        "The 7.79% L/S figure comes from the physical, costed simulation."
+    )
     table = Table(
-        formatted,
-        colWidths=[1.63 * inch, 1.34 * inch, 0.70 * inch, 0.78 * inch, 0.95 * inch, CONTENT_WIDTH - 5.40 * inch],
-        repeatRows=1,
+        [[
+            text(long_only, 6.8, INK, leading=8.4),
+            text(long_short, 6.8, INK, leading=8.4),
+            text(comparison, 6.8, INK, leading=8.4),
+        ]],
+        colWidths=[CONTENT_WIDTH / 3.0] * 3,
     )
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, SOFT]),
-                ("GRID", (0, 0), (-1, -1), 0.35, LINE),
-                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3.4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3.4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("BACKGROUND", (0, 0), (-1, -1), SOFT),
+                ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
             ]
         )
     )
@@ -495,16 +471,15 @@ def evidence_table(summary: pd.DataFrame, execution_summary: pd.DataFrame) -> Ta
 
 def limitations_box() -> Table:
     left = (
-        "<b>What the evidence supports</b><br/>"
-        "The historical record tests a fixed decision process across repeated monthly vintages. It supports "
-        "comparison of drawdown, volatility and return after the stated cost rules. The 2019-2026 period has "
-        "already informed research review and is not presented as an untouched holdout."
+        "<b>How to read the backtest</b><br/>"
+        "The 2019-2026 results influenced later research decisions, so that period belongs to the reviewed sample. "
+        "The reported returns include the cost rules described above. They remain historical simulations rather than live account returns."
     )
     right = (
-        "<b>Material limits</b><br/>"
-        "Most non-core FRED series use publication lags with revised history. Yahoo prices are a public research "
-        "feed. Proxy splices can differ from later ETFs. Borrow availability, taxes and market impact are modeled "
-        "imperfectly. Portfolio Margin must be checked on the live IBKR account before trading."
+        "<b>Data and execution limits</b><br/>"
+        "Full ALFRED histories cover CPI, industrial production, payrolls and M2. Other FRED series use their release delay with latest-revised history. "
+        "Yahoo Finance supplies adjusted prices. Mutual funds and futures extend selected ETF histories before inception. "
+        "Actual taxes, borrow availability and market impact can differ from the model."
     )
     table = Table(
         [[text(left, 6.9, INK, leading=8.6), text(right, 6.9, INK, leading=8.6)]],
@@ -529,19 +504,19 @@ def limitations_box() -> Table:
 
 def risk_controls() -> Table:
     long_only = (
-        "<b>Long-only boundary</b><br/>"
-        "Weights remain fully funded. The 10% volatility target acts as a ceiling because exposure can be "
-        "reduced but cannot exceed 100%. Trend failures move to BIL. This track has no short positions or margin debit."
+        "<b>Long-only limits</b><br/>"
+        "ETF and BIL weights total 100%. Exposure can fall as low as 50% when volatility is high; the remainder goes to BIL. "
+        "Exposure cannot exceed 100%. Shorts and margin borrowing are disabled."
     )
     long_short = (
-        "<b>L/S hard limits</b><br/>"
-        "Gross exposure is capped at 175%, net exposure at 150%, gross shorts at 35%, each non-cash ETF at "
-        "25%, and margin debit at 50%. The whole book still requires an IBKR Portfolio Margin preview."
+        "<b>L/S limits</b><br/>"
+        "Maximum gross exposure: 175%. Maximum net exposure: 150%. Maximum gross shorts: 35%. Maximum absolute weight per non-cash ETF: 25%. "
+        "Maximum USD margin debit: 50%. IBKR calculates the final Portfolio Margin requirement on the live account."
     )
     operations = (
-        "<b>Monthly operation</b><br/>"
-        "The completed month-end signal is frozen before the next allocation. Current-month prices update "
-        "performance only and cannot alter that signal. Stale data, missing vintages or failed causality tests stop deployment."
+        "<b>Cost inputs</b><br/>"
+        "IBKR Pro Fixed commission: $0.005 per share, $1 minimum and 1% order-value cap. The model adds current US regulatory fees, "
+        "1 basis point of slippage, published margin-rate tiers, 1% annual ETF short borrow and IBKR short-proceeds interest tiers."
     )
     table = Table(
         [[
@@ -577,7 +552,6 @@ def load_outputs() -> dict[str, pd.DataFrame]:
         "execution_summary": pd.read_csv(
             EXPORTS / "macro_seasons_v4_execution_summary.csv"
         ).set_index("series"),
-        "audit": pd.read_csv(ROOT / "data" / "macro_seasons_v4_data_audit.csv"),
     }
 
 
@@ -597,9 +571,6 @@ def draw_footer(canvas, doc) -> None:
 def build_pdf(data: dict[str, pd.DataFrame]) -> None:
     timeline = data["timeline"].dropna(subset=["modal_season"])
     as_of = timeline.index[-1]
-    audit = data["audit"]
-    audit_pass = int(audit["status"].eq("PASS").sum())
-    audit_total = int(len(audit))
 
     doc = SimpleDocTemplate(
         str(PDF_OUT),
@@ -617,16 +588,16 @@ def build_pdf(data: dict[str, pd.DataFrame]) -> None:
     story.extend(
         page_header(
             "Macro Seasons v4",
-            "How point-in-time macro evidence becomes monthly season probabilities and two investable ETF portfolios.",
+            "Data sources, season rules and monthly portfolio construction.",
             f"Methodology | latest completed signal {as_of:%B %d, %Y}",
         )
     )
 
     intro = Table(
         [[text(
-            "The model reads growth, inflation and liquidity at each completed month-end. Growth and inflation "
-            "define four economic seasons. Liquidity changes how much risk the portfolio takes. The output is a "
-            "probability mix across all four seasons, so one noisy release changes the portfolio gradually.",
+            "At each month-end, the model calculates one Growth score, one Inflation score and one Liquidity "
+            "score. Growth and Inflation set the four season weights. Liquidity changes the final mix between "
+            "risk and defensive ETFs.",
             8.1,
             INK,
             leading=10.2,
@@ -648,53 +619,36 @@ def build_pdf(data: dict[str, pd.DataFrame]) -> None:
     story.extend([intro, Spacer(1, 9)])
 
     story.extend([section_heading("1", "The four seasons"), Spacer(1, 4), season_table(), Spacer(1, 9)])
-    story.extend([section_heading("2", "What enters the signal"), Spacer(1, 4), pillar_cards(), Spacer(1, 9)])
-    story.extend([section_heading("3", "The monthly decision path"), Spacer(1, 4), monthly_process(), Spacer(1, 8)])
-    story.extend([causal_box(audit_pass, audit_total), Spacer(1, 7), probability_note(), PageBreak()])
+    story.extend([section_heading("2", "Data used for each pillar"), Spacer(1, 4), pillar_cards(), Spacer(1, 9)])
+    story.extend([section_heading("3", "From month-end data to next month's portfolio"), Spacer(1, 4), monthly_process(), Spacer(1, 8)])
+    story.extend([
+        probability_note(),
+        Spacer(1, 8),
+        section_heading("4", "ETF templates and backtest timing"),
+        Spacer(1, 4),
+        selection_and_walkforward(),
+        PageBreak(),
+    ])
 
     story.extend(
         page_header(
             "Two portfolios, one macro engine",
-            "Both tracks start from the same monthly season probabilities. Their risk budgets, return sources and implementation costs are different.",
-            "Portfolio construction and walk-forward evidence",
+            "Long-only holds a funded ETF portfolio. L/S combines three return streams, shorts selected ETFs and models IBKR financing.",
+            "Portfolio rules and backtest timing",
         )
     )
     story.extend([portfolio_comparison(), Spacer(1, 9)])
-    story.extend([section_heading("4", "Portfolio design and walk-forward discipline"), Spacer(1, 4), selection_and_walkforward(), Spacer(1, 8)])
-    story.extend([section_heading("5", "Historical evidence", "after the stated cost rules"), Spacer(1, 4)])
-    story.append(evidence_table(data["summary"], data["execution_summary"]))
-    story.append(Spacer(1, 4))
-    story.append(
-        text(
-            "The website's 9.21% return-level ensemble represents the target streams before physical netting and "
-            "explicit IBKR financing. The holdings-based, costed L/S record begins in January 2007 and earns "
-            "7.79% over the frozen sample.",
-            6.7,
-            MUTED,
-            leading=8.2,
-        )
-    )
+    story.extend([section_heading("5", "Backtest coverage"), Spacer(1, 4)])
+    story.append(backtest_coverage(data["summary"], data["execution_summary"]))
     story.extend([
         Spacer(1, 7),
-        section_heading("6", "Risk and operating controls"),
+        section_heading("6", "Limits and cost assumptions"),
         Spacer(1, 4),
         risk_controls(),
         Spacer(1, 7),
         limitations_box(),
         Spacer(1, 5),
     ])
-    story.append(
-        text(
-            "Sources: Federal Reserve FRED and ALFRED, Yahoo Finance adjusted prices, and published IBKR Pro "
-            "commission and financing schedules. Full source, immutable V4 inputs, hashes and monthly artifacts "
-            "are retained in the release package. Historical simulations are research results, not investment advice.",
-            6.4,
-            NAVY,
-            bold=True,
-            leading=7.7,
-        )
-    )
-
     PDF_OUT.parent.mkdir(parents=True, exist_ok=True)
     doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
     validate_pdf()
@@ -708,12 +662,12 @@ def validate_pdf() -> None:
     extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
     required = [
         "The four seasons",
-        "What enters the signal",
-        "The monthly decision path",
-        "LONG-ONLY SEASON PORTFOLIO",
+        "Data used for each pillar",
+        "From month-end data to next month's portfolio",
+        "LONG-ONLY PORTFOLIO",
         "L/S PORTFOLIO",
-        "What walk-forward means",
-        "Material limits",
+        "Backtest timing",
+        "Data and execution limits",
     ]
     missing = [phrase for phrase in required if phrase not in extracted]
     if missing:
