@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Reproducible Macro Seasons v4 monthly refresh and deployment.
+# Reproducible Macro Seasons v4 refresh and deployment. The execution step
+# always marks the current month through the prior New York calendar day.
 
 set -u
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,7 +37,7 @@ run_step "1/9 Refresh broad price and dashboard data" "$PY" update_macro_seasons
 run_step "2/9 Refresh and gate V4 FRED/Yahoo/ALFRED" "$PY" refresh_macro_seasons_v4_data.py
 run_step "3/9 Regenerate Black-Litterman outputs" "$PY" generate_bl_outputs.py
 run_step "4/9 Run frozen Macro Seasons v4 PIT model" "$PY" run_macro_seasons_v4.py --no-network
-run_step "5/9 Rebuild V4 IBKR execution overlay" "$PY" run_macro_seasons_v4_execution.py
+run_step "5/9 Refresh latest closes and rebuild V4 execution overlay" "$PY" run_macro_seasons_v4_execution.py
 run_step "6/9 Run regression tests" "$PY" -m pytest -q
 run_step "7/9 Rebuild V4 method PDF" "$PY" research/make_onepager.py
 run_step "8/9 Regenerate static website" "$PY" make_website.py
@@ -54,6 +55,7 @@ if [ "$FAILURES" -eq 0 ]; then
     exports/website/macro_seasons_v4_execution_current_positions.csv \
     exports/website/macro_seasons_v4_execution_current_tsmom.csv \
     exports/website/macro_seasons_v4_execution_summary.csv \
+    exports/website/macro_seasons_v4_live_mtd.csv \
     exports/website/macro_seasons_v4_execution_pm_pretrade_check.csv \
     exports/website/macro_seasons_v4_execution_assumptions.csv \
     "$DEPLOY_HOST:$DEPLOY_PATH/" >>"$LOG" 2>&1; then

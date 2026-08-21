@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -20,7 +21,7 @@ import pandas as pd
 import macro_seasons_v4 as m
 
 
-MODEL_VERSION = "macro_seasons_v4_ibkr_execution_v2"
+MODEL_VERSION = "macro_seasons_v4_ibkr_execution_v3"
 EXECUTION_BACKTEST_START = pd.Timestamp("2007-01-31")
 SETTINGS_FILE = m.ROOT / "config" / "ibkr_execution_settings.csv"
 MARGIN_TIERS_FILE = m.ROOT / "config" / "ibkr_margin_tiers.csv"
@@ -66,6 +67,7 @@ class ExecutionArtifacts:
     pm_pretrade_check: pd.DataFrame
     position_history: pd.DataFrame
     execution_ledger: pd.DataFrame
+    live_mtd: pd.DataFrame
     summary: pd.DataFrame
     cost_summary: pd.DataFrame
     assumptions: pd.DataFrame
@@ -540,7 +542,14 @@ def build_target_positions(prices: pd.DataFrame, probabilities: pd.DataFrame,
                            current_tsmom: pd.Series, realrate_shift: pd.Series,
                            credit_stress: pd.Series, daily_index: pd.DataFrame,
                            settings: ExecutionSettings
-                           ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, dict[str, object], pd.DataFrame]:
+                           ) -> tuple[
+                               pd.DataFrame,
+                               pd.DataFrame,
+                               pd.Series,
+                               dict[str, object],
+                               pd.DataFrame,
+                               pd.Series,
+                           ]:
     long_ledger = long_run.ledger.set_index("return_date")
     core_ledger = core_run.ledger.set_index("return_date")
     cash = long_ledger["cash_return"]
@@ -660,6 +669,7 @@ def build_target_positions(prices: pd.DataFrame, probabilities: pd.DataFrame,
         current_target,
         current_metadata,
         current_component_table,
+        current_long,
     )
 
 
@@ -878,6 +888,227 @@ def simulate_execution(target_history: pd.DataFrame, diagnostics: pd.DataFrame,
     return pd.DataFrame(ledger_rows), previous_end_weights, final_trade_details
 
 
+def _latest_common_close(
+    daily_prices: pd.DataFrame,
+    tickers: pd.Index | list[str] | set[str],
+    upper_bound: pd.Timestamp,
+    *,
+    max_age_days: int = 4,
+) -> tuple[pd.Timestamp, pd.Series]:
+    required = sorted(set(map(str, tickers)))
+    missing = sorted(set(required) - set(daily_prices.columns))
+    if missing:
+        raise ValueError(f"Daily adjusted-close cache is missing: {missing}")
+    upper_bound = pd.Timestamp(upper_bound).normalize()
+    through = daily_prices.loc[daily_prices.index <= upper_bound, required].dropna(how="any")
+    if through.empty:
+        raise ValueError(f"No common adjusted close is available through {upper_bound:%Y-%m-%d}")
+    price_date = pd.Timestamp(through.index.max()).normalize()
+    if (upper_bound - price_date).days > max_age_days:
+        raise ValueError(
+            f"Latest common adjusted close is stale: {price_date:%Y-%m-%d} "
+            f"for cutoff {upper_bound:%Y-%m-%d}"
+        )
+    return price_date, through.loc[price_date].astype(float)
+
+
+def build_live_mtd(
+    *,
+    signal_date: pd.Timestamp,
+    cutoff_date: pd.Timestamp,
+    daily_prices: pd.DataFrame,
+    long_only_target: pd.Series,
+    previous_long_only_target: pd.Series,
+    execution_target: pd.Series,
+    previous_execution_end_weights: pd.Series,
+    reference_nav_usd: float,
+    cash_monthly_log_return: float,
+    settings: ExecutionSettings,
+    margin_tiers: pd.DataFrame,
+    short_borrow_rates: pd.Series,
+    short_proceeds_tiers: pd.DataFrame,
+) -> pd.DataFrame:
+    """Mark the current allocation from its month-start close through the live cutoff."""
+    signal_date = pd.Timestamp(signal_date).normalize()
+    cutoff_date = pd.Timestamp(cutoff_date).normalize()
+    long_only_target = long_only_target[long_only_target.abs() > 1e-12].astype(float)
+    execution_target = execution_target[execution_target.abs() > 1e-12].astype(float)
+    previous_long_only_target = previous_long_only_target[
+        previous_long_only_target.abs() > 1e-12
+    ].astype(float)
+    previous_execution_end_weights = previous_execution_end_weights[
+        previous_execution_end_weights.abs() > 1e-12
+    ].astype(float)
+
+    current_required = (
+        long_only_target.index.union(execution_target.index).union(pd.Index(["SPY", "AGG"]))
+    )
+    base_required = (
+        current_required
+        .union(previous_long_only_target.index)
+        .union(previous_execution_end_weights.index)
+    )
+    base_price_date, base_prices = _latest_common_close(
+        daily_prices, base_required, signal_date
+    )
+    price_as_of, current_prices = _latest_common_close(
+        daily_prices, current_required, cutoff_date
+    )
+
+    metadata: dict[str, object] = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "signal_date": signal_date,
+        "effective_month": (signal_date + pd.offsets.MonthBegin(1)).strftime("%Y-%m"),
+        "cutoff_date": cutoff_date,
+        "base_price_date": base_price_date,
+        "price_as_of": price_as_of,
+        "source": "Yahoo Finance adjusted close via yfinance",
+        "is_provisional": True,
+        "macro_signal_unchanged": True,
+    }
+    if price_as_of <= base_price_date:
+        return pd.DataFrame([{**metadata, "status": "NO_NEW_CLOSE"}])
+
+    live_simple_returns = current_prices / base_prices.reindex(current_required) - 1.0
+    if not np.isfinite(live_simple_returns).all():
+        raise ValueError("Live adjusted-close returns contain missing or non-finite values")
+    days = max(int((price_as_of - base_price_date).days), 1)
+
+    long_only_asset_return = float(long_only_target.dot(live_simple_returns.reindex(long_only_target.index)))
+    if long_only_asset_return <= -0.999:
+        raise RuntimeError("Long-only MTD return is below -99.9%")
+    long_union = long_only_target.index.union(previous_long_only_target.index)
+    long_turnover = float(
+        (
+            long_only_target.reindex(long_union).fillna(0.0)
+            - previous_long_only_target.reindex(long_union).fillna(0.0)
+        ).abs().sum()
+        * 0.5
+    )
+    long_transaction_cost_log = long_turnover * m.COST_BPS / 1e4
+    long_only_log_return = math.log1p(long_only_asset_return) - long_transaction_cost_log
+
+    execution_union = execution_target.index.union(previous_execution_end_weights.index)
+    execution_deltas = (
+        execution_target.reindex(execution_union).fillna(0.0)
+        - previous_execution_end_weights.reindex(execution_union).fillna(0.0)
+    )
+    commission_usd, regulatory_fees_usd, slippage_usd, _ = _cost_for_trade_deltas(
+        execution_deltas,
+        reference_nav_usd,
+        base_prices.reindex(execution_union),
+        settings,
+    )
+    commission_cost = commission_usd / reference_nav_usd
+    regulatory_fee_cost = regulatory_fees_usd / reference_nav_usd
+    slippage_cost = slippage_usd / reference_nav_usd
+    execution_asset_return = float(
+        execution_target.dot(live_simple_returns.reindex(execution_target.index))
+    )
+
+    long_gross = float(execution_target[execution_target > 0].sum())
+    short_gross = float(-execution_target[execution_target < 0].sum())
+    unencumbered_cash_weight = max(1.0 - long_gross, 0.0)
+    margin_debit_weight = max(long_gross - 1.0, 0.0)
+    short_collateral_weight = short_gross * settings.short_collateral_factor
+    cash_simple = float(np.expm1(cash_monthly_log_return))
+    benchmark_annual = _annualized_benchmark(cash_simple)
+
+    positive_cash_interest = 0.0
+    if unencumbered_cash_weight > 0:
+        cash_usd = unencumbered_cash_weight * reference_nav_usd
+        eligible_usd = max(cash_usd - settings.cash_interest_free_usd, 0.0)
+        paid_rate = max(benchmark_annual - settings.cash_interest_spread_bps / 1e4, 0.0)
+        positive_cash_interest = (
+            eligible_usd / reference_nav_usd * paid_rate * days / settings.annual_day_count
+        )
+
+    margin_benchmark_cost = 0.0
+    margin_spread_cost = 0.0
+    if margin_debit_weight > 0:
+        borrow_usd = margin_debit_weight * reference_nav_usd
+        spread_bps = blended_margin_spread_bps(borrow_usd, margin_tiers)
+        margin_benchmark_cost = (
+            margin_debit_weight * benchmark_annual * days / settings.annual_day_count
+        )
+        margin_spread_cost = (
+            margin_debit_weight * spread_bps / 1e4 * days / settings.annual_day_count
+        )
+
+    short_proceeds_interest = 0.0
+    if short_collateral_weight > 0:
+        proceeds_rate = blended_short_proceeds_rate(
+            short_collateral_weight * reference_nav_usd,
+            benchmark_annual,
+            short_proceeds_tiers,
+        )
+        short_proceeds_interest = (
+            short_collateral_weight * proceeds_rate * days / settings.annual_day_count
+        )
+
+    short_borrow_cost = 0.0
+    for ticker, weight in execution_target[execution_target < 0].items():
+        annual_bps = float(
+            short_borrow_rates.get(ticker, settings.default_short_borrow_bps)
+        )
+        short_borrow_cost += (
+            -float(weight)
+            * settings.short_collateral_factor
+            * annual_bps
+            / 1e4
+            * days
+            / settings.annual_day_count
+        )
+
+    execution_net_simple = (
+        execution_asset_return
+        + positive_cash_interest
+        + short_proceeds_interest
+        - margin_benchmark_cost
+        - margin_spread_cost
+        - short_borrow_cost
+        - commission_cost
+        - regulatory_fee_cost
+        - slippage_cost
+    )
+    if execution_net_simple <= -0.999:
+        raise RuntimeError("L/S MTD return is below -99.9%")
+
+    spy_simple = float(live_simple_returns["SPY"])
+    sixty_forty_simple = float(
+        0.6 * live_simple_returns["SPY"] + 0.4 * live_simple_returns["AGG"]
+    )
+    row = {
+        **metadata,
+        "status": "UPDATED",
+        "elapsed_calendar_days": days,
+        "reference_nav_usd": reference_nav_usd,
+        "cash_benchmark_annual": benchmark_annual,
+        "long_only_asset_return_simple": long_only_asset_return,
+        "long_only_turnover": long_turnover,
+        "long_only_transaction_cost_log": long_transaction_cost_log,
+        "long_only_log_return": long_only_log_return,
+        "long_only_simple_return": math.expm1(long_only_log_return),
+        "ls_asset_return_simple": execution_asset_return,
+        "ls_turnover": float(execution_deltas.abs().sum() * 0.5),
+        "ls_commission_cost": commission_cost,
+        "ls_regulatory_fee_cost": regulatory_fee_cost,
+        "ls_slippage_cost": slippage_cost,
+        "ls_positive_cash_interest": positive_cash_interest,
+        "ls_short_proceeds_interest": short_proceeds_interest,
+        "ls_margin_benchmark_cost": margin_benchmark_cost,
+        "ls_margin_spread_cost": margin_spread_cost,
+        "ls_short_borrow_cost": short_borrow_cost,
+        "ls_log_return": math.log1p(execution_net_simple),
+        "ls_simple_return": execution_net_simple,
+        "spy_log_return": math.log1p(spy_simple),
+        "spy_simple_return": spy_simple,
+        "sixty_forty_log_return": math.log1p(sixty_forty_simple),
+        "sixty_forty_simple_return": sixty_forty_simple,
+    }
+    return pd.DataFrame([row])
+
+
 def performance_row(name: str, log_returns: pd.Series, cash_log: pd.Series) -> dict[str, object]:
     returns = log_returns.dropna()
     cash = cash_log.reindex(returns.index).fillna(0.0)
@@ -980,7 +1211,9 @@ def _current_orders(current_positions: pd.DataFrame, previous_end: pd.Series,
 
 def build_execution_artifacts(prices: pd.DataFrame, probabilities: pd.DataFrame,
                               realrate_shift: pd.Series, credit_stress: pd.Series,
-                              daily_index: pd.DataFrame) -> ExecutionArtifacts:
+                              daily_index: pd.DataFrame,
+                              live_daily_prices: pd.DataFrame | None = None,
+                              live_cutoff: pd.Timestamp | None = None) -> ExecutionArtifacts:
     settings = load_execution_settings()
     margin_tiers = load_margin_tiers()
     short_rates = load_short_borrow_rates()
@@ -1000,7 +1233,14 @@ def build_execution_artifacts(prices: pd.DataFrame, probabilities: pd.DataFrame,
     tsmom_positions, tsmom_ledger, current_tsmom = build_tsmom_position_path(prices)
     assert_tsmom_parity(prices, tsmom_ledger)
 
-    target_history, diagnostics, current_target, current_metadata, component_table = build_target_positions(
+    (
+        target_history,
+        diagnostics,
+        current_target,
+        current_metadata,
+        component_table,
+        current_long,
+    ) = build_target_positions(
         prices,
         probabilities,
         long_run,
@@ -1024,6 +1264,29 @@ def build_execution_artifacts(prices: pd.DataFrame, probabilities: pd.DataFrame,
         short_rates,
         short_proceeds_tiers,
     )
+    live_mtd = pd.DataFrame()
+    if live_daily_prices is not None and live_cutoff is not None:
+        previous_long_as_of = pd.Timestamp(long_run.weights["as_of"].max())
+        previous_long = (
+            long_run.weights.loc[long_run.weights["as_of"] == previous_long_as_of]
+            .set_index("ticker")["weight"]
+            .astype(float)
+        )
+        live_mtd = build_live_mtd(
+            signal_date=pd.Timestamp(current_metadata["as_of"]),
+            cutoff_date=pd.Timestamp(live_cutoff),
+            daily_prices=live_daily_prices,
+            long_only_target=current_long,
+            previous_long_only_target=previous_long,
+            execution_target=current_target,
+            previous_execution_end_weights=previous_end,
+            reference_nav_usd=float(execution_ledger.iloc[-1]["nav_usd"]),
+            cash_monthly_log_return=float(cash_log.iloc[-1]),
+            settings=settings,
+            margin_tiers=margin_tiers,
+            short_borrow_rates=short_rates,
+            short_proceeds_tiers=short_proceeds_tiers,
+        )
     current_positions = _current_position_table(
         current_target, component_table, current_metadata, prices, settings, short_rates
     )
@@ -1201,10 +1464,32 @@ def build_execution_artifacts(prices: pd.DataFrame, probabilities: pd.DataFrame,
                 m.ROOT / "research" / "macro_seasons_v4_execution.py",
                 m.DATA / "prices_macro_seasons_extended.csv",
                 m.DATA / "factors_point_in_time.csv",
+                m.LIVE_DAILY_CACHE,
             ]
             if path.exists()
         },
         "broker_assumptions_reviewed_on": "2026-08-20",
+        "live_mtd": (
+            {
+                key: (
+                    str(value.date())
+                    if isinstance(value, pd.Timestamp)
+                    else value
+                )
+                for key, value in live_mtd.iloc[0].items()
+                if key in {
+                    "status",
+                    "signal_date",
+                    "effective_month",
+                    "cutoff_date",
+                    "base_price_date",
+                    "price_as_of",
+                    "source",
+                }
+            }
+            if not live_mtd.empty
+            else {}
+        ),
         "margin_policy": {
             "account_type": "PORTFOLIO_MARGIN",
             "exact_requirement_source": "LIVE_IBKR_CHECK_MARGIN",
@@ -1230,6 +1515,7 @@ def build_execution_artifacts(prices: pd.DataFrame, probabilities: pd.DataFrame,
         pm_pretrade_check=pm_pretrade_check,
         position_history=target_history.merge(diagnostics, on=["as_of", "return_date"], how="left"),
         execution_ledger=execution_ledger,
+        live_mtd=live_mtd,
         summary=summary,
         cost_summary=cost_summary,
         assumptions=assumptions,
@@ -1249,6 +1535,7 @@ def write_execution_artifacts(artifacts: ExecutionArtifacts, output_dir: Path = 
     )
     artifacts.position_history.to_csv(output_dir / "macro_seasons_v4_execution_position_history.csv", index=False)
     artifacts.execution_ledger.to_csv(output_dir / "macro_seasons_v4_execution_ledger.csv", index=False)
+    artifacts.live_mtd.to_csv(output_dir / "macro_seasons_v4_live_mtd.csv", index=False)
     artifacts.summary.to_csv(output_dir / "macro_seasons_v4_execution_summary.csv", index=False)
     artifacts.cost_summary.to_csv(output_dir / "macro_seasons_v4_execution_cost_summary.csv", index=False)
     artifacts.assumptions.to_csv(output_dir / "macro_seasons_v4_execution_assumptions.csv", index=False)

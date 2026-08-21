@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -55,6 +56,75 @@ def test_short_proceeds_rate_uses_separate_ibkr_tiers() -> None:
     assert execution.blended_short_proceeds_rate(230_000, benchmark, tiers) == pytest.approx(
         130_000 * (benchmark - 0.0125) / 230_000
     )
+
+
+def test_live_price_cutoff_is_prior_new_york_calendar_day() -> None:
+    now = pd.Timestamp("2026-08-21 09:00:00", tz="America/New_York")
+
+    assert v4.latest_completed_price_cutoff(now) == pd.Timestamp("2026-08-20")
+    assert v4.LIVE_DAILY_CACHE.name == "yahoo_live_daily.csv"
+    assert v4.LIVE_DAILY_CACHE != v4.CACHE / "yahoo_daily.csv"
+
+
+def test_latest_common_close_honors_cutoff_and_requires_fresh_shared_date() -> None:
+    daily = pd.DataFrame(
+        {
+            "SPY": [100.0, 101.0, 102.0],
+            "AGG": [100.0, 100.5, 101.0],
+        },
+        index=pd.to_datetime(["2026-08-19", "2026-08-20", "2026-08-21"]),
+    )
+
+    price_date, prices = execution._latest_common_close(
+        daily, ["SPY", "AGG"], pd.Timestamp("2026-08-20")
+    )
+
+    assert price_date == pd.Timestamp("2026-08-20")
+    assert prices.to_dict() == {"SPY": 101.0, "AGG": 100.5}
+
+
+def test_live_mtd_uses_frozen_signal_and_costed_current_positions() -> None:
+    dates = pd.to_datetime(["2026-07-31", "2026-08-20"])
+    daily = pd.DataFrame(
+        {
+            "SPY": [100.0, 110.0],
+            "AGG": [100.0, 101.0],
+            "BIL": [100.0, 100.2],
+            "TLT": [100.0, 95.0],
+        },
+        index=dates,
+    )
+    settings = execution.load_execution_settings()
+    long_target = pd.Series({"SPY": 0.60, "BIL": 0.40})
+    execution_target = pd.Series({"SPY": 1.10, "TLT": -0.20})
+
+    live = execution.build_live_mtd(
+        signal_date=pd.Timestamp("2026-07-31"),
+        cutoff_date=pd.Timestamp("2026-08-20"),
+        daily_prices=daily,
+        long_only_target=long_target,
+        previous_long_only_target=long_target,
+        execution_target=execution_target,
+        previous_execution_end_weights=execution_target,
+        reference_nav_usd=1_000_000.0,
+        cash_monthly_log_return=math.log1p(0.003),
+        settings=settings,
+        margin_tiers=execution.load_margin_tiers(),
+        short_borrow_rates=pd.Series({"TLT": 100.0}),
+        short_proceeds_tiers=execution.load_short_proceeds_tiers(),
+    ).iloc[0]
+
+    assert live["status"] == "UPDATED"
+    assert pd.Timestamp(live["signal_date"]) == pd.Timestamp("2026-07-31")
+    assert pd.Timestamp(live["price_as_of"]) == pd.Timestamp("2026-08-20")
+    assert bool(live["macro_signal_unchanged"])
+    assert float(live["long_only_asset_return_simple"]) == pytest.approx(0.0608)
+    assert float(live["long_only_turnover"]) == pytest.approx(0.0)
+    assert float(live["ls_asset_return_simple"]) == pytest.approx(0.12)
+    assert float(live["ls_margin_benchmark_cost"]) > 0.0
+    assert float(live["ls_margin_spread_cost"]) > 0.0
+    assert float(live["ls_short_borrow_cost"]) > 0.0
+    assert float(live["ls_simple_return"]) < float(live["ls_asset_return_simple"])
 
 
 def test_position_limits_net_bil_against_borrowing_and_enforce_caps() -> None:

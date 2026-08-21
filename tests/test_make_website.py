@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+import pandas as pd
+
 from make_website import build_page, load_data
 
 
@@ -96,3 +98,33 @@ def test_monthly_returns_offer_long_only_and_costed_ls_views_from_2007() -> None
     row_2007 = ls_panel.split("<tr><td>2007</td>", 1)[1].split("</tr>", 1)[0]
     assert row_2007.count("class='na'") == 0
     assert "history begins January 2008" not in page
+
+
+def test_provisional_mtd_row_updates_both_tables_without_moving_macro_signal() -> None:
+    data = load_data()
+    data["live_mtd"] = pd.DataFrame(
+        [
+            {
+                "status": "UPDATED",
+                "signal_date": pd.Timestamp("2026-07-31"),
+                "cutoff_date": pd.Timestamp("2026-08-20"),
+                "base_price_date": pd.Timestamp("2026-07-31"),
+                "price_as_of": pd.Timestamp("2026-08-20"),
+                "long_only_log_return": 0.02,
+                "ls_log_return": 0.03,
+                "spy_log_return": 0.01,
+                "sixty_forty_log_return": 0.008,
+            }
+        ]
+    )
+
+    page = build_page(data)
+
+    assert "August MTD through Aug 20 close" in page
+    assert "PIT data through Jul 2026" in page
+    long_panel = page.split("data-return-panel='long-only'", 1)[1].split("</section>", 1)[0]
+    ls_panel = page.split("data-return-panel='ls'", 1)[1].split("</section>", 1)[0]
+    long_2026 = long_panel.split("<tr><td>2026</td>", 1)[1].split("</tr>", 1)[0]
+    ls_2026 = ls_panel.split("<tr><td>2026</td>", 1)[1].split("</tr>", 1)[0]
+    assert "title='Aug 2026: +2.0%'" in long_2026
+    assert "title='Aug 2026: +3.0%'" in ls_2026

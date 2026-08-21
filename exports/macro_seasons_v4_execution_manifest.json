@@ -37,9 +37,19 @@
     "config/ibkr_short_borrow_assumptions.csv": "1f01e2827a1416fd22e4ee214ced94282a482e506295727551d76e007d6e9cff",
     "config/ibkr_short_proceeds_tiers.csv": "d3ccbe646d2b656e47ca93d73f581d6bedf99a54754986cf89cbc7c02607ad27",
     "data/factors_point_in_time.csv": "ab8f9c58a971461644cf54f14f21e246079a582b240a588362e2409267172739",
+    "data/fred_cache/yahoo_live_daily.csv": "4ef5a4a6e22987e3498a0ffe069005bf6e594c229612ab05165701bd844bef79",
     "data/prices_macro_seasons_extended.csv": "2436b15ee66cf5f6b6e8e491d19d4a3e9c296733973990bb4bb6f48221bcc842",
-    "research/macro_seasons_v4.py": "f92615e5727d8d971354affe08c7ea292b876dd0fcacde62b1f064c359d5228d",
-    "research/macro_seasons_v4_execution.py": "ae694beb59ae5722b6d7e78286e1a966da1e7cd54dcdabfff65a78d7dd09c6cc"
+    "research/macro_seasons_v4.py": "2814552aa44c8fa171276ecbbec90408f573f7b15facbd8e7ccd1e325df4ff57",
+    "research/macro_seasons_v4_execution.py": "34376ee4d8d239802ef68646a83966742b67aed53f27ddb77c93ab854e10aef8"
+  },
+  "live_mtd": {
+    "base_price_date": "2026-07-31",
+    "cutoff_date": "2026-08-20",
+    "effective_month": "2026-08",
+    "price_as_of": "2026-08-20",
+    "signal_date": "2026-07-31",
+    "source": "Yahoo Finance adjusted close via yfinance",
+    "status": "UPDATED"
   },
   "margin_policy": {
     "account_type": "PORTFOLIO_MARGIN",
@@ -47,7 +57,7 @@
     "minimum_projected_cushion_fraction": 0.2,
     "regt_result_is_reference_only": true
   },
-  "model_version": "macro_seasons_v4_ibkr_execution_v2",
+  "model_version": "macro_seasons_v4_ibkr_execution_v3",
   "sources": {
     "cash_interest": "https://www.interactivebrokers.com/en/accounts/fees/pricing-interest-rates.php",
     "commissions": "https://www.interactivebrokers.com/en/pricing/commissions-stocks.php",

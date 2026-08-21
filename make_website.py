@@ -105,6 +105,11 @@ def load_data() -> dict[str, object]:
     execution_manifest = json.loads(
         (EXPORTS / "macro_seasons_v4_execution_manifest.json").read_text()
     )
+    live_mtd_path = EXPORTS / "macro_seasons_v4_live_mtd.csv"
+    live_mtd = pd.read_csv(
+        live_mtd_path,
+        parse_dates=["signal_date", "cutoff_date", "base_price_date", "price_as_of"],
+    ) if live_mtd_path.exists() else pd.DataFrame()
     return {
         "long_only": long_only,
         "ensemble": ensemble,
@@ -119,6 +124,7 @@ def load_data() -> dict[str, object]:
         "execution_ledger": execution_ledger,
         "execution_costs": execution_costs,
         "execution_manifest": execution_manifest,
+        "live_mtd": live_mtd,
     }
 
 
@@ -254,7 +260,7 @@ def metric_block(title: str, row: pd.Series, accent: str) -> str:
 
 
 def build_page(data: dict[str, pd.DataFrame]) -> str:
-    long_only, ensemble = data["long_only"], data["ensemble"]
+    long_only, ensemble = data["long_only"].copy(), data["ensemble"].copy()
     timeline, summary = data["timeline"], data["summary"]
     allocation = data["allocation"].sort_values("weight_pct", ascending=False)
     audit = data["audit"]
@@ -262,9 +268,24 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     execution_positions = data["execution_positions"].copy()
     execution_tsmom = data["execution_tsmom"].copy()
     execution_summary = data["execution_summary"]
-    execution_ledger = data["execution_ledger"]
+    execution_ledger = data["execution_ledger"].copy()
     execution_costs = data["execution_costs"]
     execution_manifest = data["execution_manifest"]
+    live_mtd = data.get("live_mtd", pd.DataFrame())
+
+    mtd_note = ""
+    if not live_mtd.empty and str(live_mtd.iloc[0].get("status", "")) == "UPDATED":
+        live = live_mtd.iloc[0]
+        price_as_of = pd.Timestamp(live["price_as_of"])
+        if price_as_of > long_only.index.max():
+            long_only.loc[price_as_of, "strategy_return"] = float(live["long_only_log_return"])
+            long_only.loc[price_as_of, "spy_return"] = float(live["spy_log_return"])
+            long_only.loc[price_as_of, "sixty_forty_return"] = float(
+                live["sixty_forty_log_return"]
+            )
+            ensemble.loc[price_as_of, "strategy_return"] = float(live["ls_log_return"])
+            execution_ledger.loc[price_as_of, "net_return"] = float(live["ls_log_return"])
+        mtd_note = f"{price_as_of:%B} MTD through {price_as_of:%b} {price_as_of.day} close"
 
     long_stats = summary.loc["Macro Seasons v4 long-only season portfolio"]
     ensemble_stats = summary.loc["Macro Seasons v4 multi-strategy ensemble"]
@@ -366,9 +387,11 @@ def build_page(data: dict[str, pd.DataFrame]) -> str:
     ls_tbody, ls_average_year = monthly_rows(
         execution_ledger["net_return"],
         long_only["spy_return"],
-        strategy_is_log=False,
+        strategy_is_log=True,
         start_year=returns_start_year,
     )
+    mtd_stamp = f" &middot; prices through {mtd_note.split(' through ', 1)[-1]}" if mtd_note else ""
+    mtd_line = f"<p class='sub'>{mtd_note}</p>" if mtd_note else ""
     month_headers = "".join(f"<th>{month}</th>" for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
     chart_script = """(function(){
 const D=__PAYLOAD__,svg=document.getElementById('eqchart'),tip=document.getElementById('eqtip'),xh=svg.querySelector('#xh');
@@ -431,7 +454,7 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 @media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid,.exec-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.exec-summary{{grid-template-columns:1fr 1fr}}.cost-grid{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
 @media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}.returns-head{{align-items:stretch;flex-direction:column}}.segmented{{width:100%}}.segmented button{{min-width:0}}}}
 </style></head><body><main>
-<nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}</div></nav>
+<nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}{mtd_stamp}</div></nav>
 
 <div class='hero'><div><div class='eyebrow'>Current macro season</div><h1>{modal.title()}, but conviction is low.</h1>
 <p class='lede'>The point-in-time growth, inflation and liquidity readings produce a broad probability mix. The model therefore blends all four season portfolios instead of treating the modal label as a certain forecast.</p>
@@ -461,9 +484,9 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='cost-grid'><div class='cost-item'><span>Costed CAGR</span><b>{execution_stats['cagr_pct']:.2f}%</b><small>{execution_start_year}&ndash;{execution_end_year} executable window</small></div><div class='cost-item'><span>Trading</span><b>{trading_bps:.1f} bp/yr</b><small>commission, regulatory fees and 1 bp slippage</small></div><div class='cost-item'><span>Margin financing</span><b>{financing_bps:.1f} bp/yr</b><small>benchmark plus IBKR tiers</small></div><div class='cost-item'><span>Net short carry</span><b>{short_net_bps:.1f} bp/yr</b><small>{borrow_bps:.1f} borrow less {short_credit_bps:.1f} proceeds credit</small></div></div>
 <p class='sub'>IBKR segregates short-sale proceeds. The {cash_weight:+.1f}% economic cash balance therefore consists of a {margin_debit:.1f}% margin debit and {short_collateral:.1f}% of marked short collateral. The simulation assumes Portfolio Margin. The {regt_reference_buffer:.1f}% Reg T-equivalent buffer is shown for reference; the full allocation still has to pass IBKR's live Check Margin with at least a 20% projected cushion. Over {execution_start_year}&ndash;{execution_end_year}, the return-level L/S series earned {execution_window_stats['cagr_pct']:.2f}%. The holdings-based simulation earned {execution_summary.loc['Executable physical accounting before explicit IBKR costs', 'cagr_pct']:.2f}% before IBKR costs and {execution_stats['cagr_pct']:.2f}% after commissions, regulatory fees, slippage, margin interest, stock borrow and interest on short proceeds. After-cost volatility was {execution_stats['ann_vol_pct']:.2f}%, and maximum drawdown was {execution_stats['max_dd_pct']:.2f}%. Futures roll cost is {roll_bps:.1f} bp because the current portfolio holds ETFs, not futures.</p>
 <details><summary>Exact TSMOM long and short sleeve</summary><p>The unaggregated trend sleeve is {tsmom_gross:.1f}% gross and {tsmom_net:+.1f}% net before its ensemble weight. A positive position means the ETF beat BIL over the trailing 12 months; a negative position means it lagged BIL.</p><div class='table-wrap'><table><thead><tr><th>Ticker</th><th>Side</th><th>12m excess</th><th>36m vol</th><th>Sleeve weight</th></tr></thead><tbody>{tsmom_rows}</tbody></table></div></details>
-<details><summary>IBKR assumptions, limits and downloadable artifacts</summary><p>IBKR Pro Fixed: USD 0.005/share, USD 1 minimum and 1% order-value cap, plus published US regulatory fees. Positive free USD cash: benchmark minus 0.50%, with no interest on the first USD 10,000. Long financing: published benchmark-plus tiers starting at +1.50%. Short collateral is marked at 102%; the first USD 100,000 earns no proceeds interest and higher tiers earn benchmark minus the published spread. Historical borrow data is unavailable, so every liquid ETF short is conservatively charged 1.00% annually and must pass a live SLB check before trading. Hard limits: 175% gross, 150% net, 35% gross shorts, 25% per non-cash ETF and 50% maximum margin debit. Portfolio Margin is risk-based and broker-calculated; no public static formula can replace its live whole-book margin preview. <a href='macro_seasons_v4_execution_current_positions.csv'>positions CSV</a> &middot; <a href='macro_seasons_v4_execution_current_tsmom.csv'>TSMOM CSV</a> &middot; <a href='macro_seasons_v4_execution_summary.csv'>performance CSV</a> &middot; <a href='macro_seasons_v4_execution_pm_pretrade_check.csv'>PM check CSV</a> &middot; <a href='macro_seasons_v4_execution_assumptions.csv'>assumptions CSV</a>.</p></details></section>
+<details><summary>IBKR assumptions, limits and downloadable artifacts</summary><p>IBKR Pro Fixed: USD 0.005/share, USD 1 minimum and 1% order-value cap, plus published US regulatory fees. Positive free USD cash: benchmark minus 0.50%, with no interest on the first USD 10,000. Long financing: published benchmark-plus tiers starting at +1.50%. Short collateral is marked at 102%; the first USD 100,000 earns no proceeds interest and higher tiers earn benchmark minus the published spread. Historical borrow data is unavailable, so every liquid ETF short is conservatively charged 1.00% annually and must pass a live SLB check before trading. Hard limits: 175% gross, 150% net, 35% gross shorts, 25% per non-cash ETF and 50% maximum margin debit. Portfolio Margin is risk-based and broker-calculated; no public static formula can replace its live whole-book margin preview. <a href='macro_seasons_v4_execution_current_positions.csv'>positions CSV</a> &middot; <a href='macro_seasons_v4_execution_current_tsmom.csv'>TSMOM CSV</a> &middot; <a href='macro_seasons_v4_execution_summary.csv'>performance CSV</a> &middot; <a href='macro_seasons_v4_live_mtd.csv'>current month CSV</a> &middot; <a href='macro_seasons_v4_execution_pm_pretrade_check.csv'>PM check CSV</a> &middot; <a href='macro_seasons_v4_execution_assumptions.csv'>assumptions CSV</a>.</p></details></section>
 
-<section id='monthly-returns'><div class='returns-head'><div><h2>Monthly returns from {returns_start_year}</h2></div><div class='segmented' role='tablist' aria-label='Monthly return series'><button class='selected' type='button' role='tab' aria-selected='true' data-return-view='long-only'>Long only</button><button type='button' role='tab' aria-selected='false' data-return-view='ls'>L/S portfolio</button></div></div>
+<section id='monthly-returns'><div class='returns-head'><div><h2>Monthly returns from {returns_start_year}</h2>{mtd_line}</div><div class='segmented' role='tablist' aria-label='Monthly return series'><button class='selected' type='button' role='tab' aria-selected='true' data-return-view='long-only'>Long only</button><button type='button' role='tab' aria-selected='false' data-return-view='ls'>L/S portfolio</button></div></div>
 <div class='return-panel' data-return-panel='long-only'><p class='sub'>Long-only portfolio &middot; percent per month after costs &middot; average completed calendar year {long_only_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{long_only_tbody}</tbody></table></div></div>
 <div class='return-panel' data-return-panel='ls' hidden><p class='sub'>L/S portfolio after modeled IBKR costs &middot; average completed calendar year {ls_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{ls_tbody}</tbody></table></div></div></section>
 
@@ -485,6 +508,7 @@ def main() -> None:
         "macro_seasons_v4_execution_current_positions.csv",
         "macro_seasons_v4_execution_current_tsmom.csv",
         "macro_seasons_v4_execution_summary.csv",
+        "macro_seasons_v4_live_mtd.csv",
         "macro_seasons_v4_execution_pm_pretrade_check.csv",
         "macro_seasons_v4_execution_assumptions.csv",
     ]:

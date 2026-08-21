@@ -50,6 +50,8 @@ DEFAULT_FRED_MAX_AGE_DAYS = 10
 YAHOO_DAILY_MAX_AGE_DAYS = 7
 YAHOO_MONTHLY_MAX_AGE_DAYS = 40
 MIN_ALFRED_HISTORY_YEARS = 25
+LIVE_PRICE_TICKERS = ("AGG",)
+LIVE_DAILY_CACHE = CACHE / "yahoo_live_daily.csv"
 
 _FRED_MEMORY: dict[str, pd.Series] = {}
 _ALFRED_MEMORY: dict[str, pd.DataFrame] = {}
@@ -258,13 +260,33 @@ def _extract_yahoo_closes(raw: pd.DataFrame) -> pd.DataFrame:
     return closes.dropna(how="all").sort_index()
 
 
-def refresh_yahoo_caches(as_of: pd.Timestamp) -> None:
+def latest_completed_price_cutoff(now: pd.Timestamp | None = None) -> pd.Timestamp:
+    """Prior New York calendar day, used as the hard live-price cutoff."""
+    current = pd.Timestamp.now(tz="America/New_York") if now is None else pd.Timestamp(now)
+    if current.tzinfo is None:
+        current = current.tz_localize("America/New_York")
+    else:
+        current = current.tz_convert("America/New_York")
+    return (current.normalize() - pd.Timedelta(days=1)).tz_localize(None)
+
+
+def refresh_yahoo_daily_cache(
+    as_of: pd.Timestamp,
+    extra_tickers: list[str] | tuple[str, ...] = LIVE_PRICE_TICKERS,
+) -> pd.DataFrame:
+    """Refresh the full month-end signal cache through ``as_of``."""
     try:
         import yfinance as yf
     except ImportError as exc:
         raise RuntimeError("yfinance is required for Macro Seasons cache refresh") from exc
 
-    daily_tickers = sorted(set(_v3.daily_risk_tickers()) | set(_v3.DAILY_PROXIES.values()))
+    as_of = pd.Timestamp(as_of).normalize()
+    cache_path = CACHE / "yahoo_daily.csv"
+    daily_tickers = sorted(
+        set(_v3.daily_risk_tickers())
+        | set(_v3.DAILY_PROXIES.values())
+        | set(extra_tickers)
+    )
     end = (as_of + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     raw_daily = yf.download(
         daily_tickers,
@@ -277,13 +299,64 @@ def refresh_yahoo_caches(as_of: pd.Timestamp) -> None:
         threads=True,
     )
     daily = _extract_yahoo_closes(raw_daily)
+    if daily.empty:
+        raise RuntimeError(f"Yahoo returned no adjusted closes through {as_of:%Y-%m-%d}")
     daily.index = daily.index.normalize()
-    daily = daily.groupby(daily.index).last()
-    daily_out = daily.copy()
+    daily = daily.loc[daily.index <= as_of].groupby(daily.index).last()
+    daily_out = daily.sort_index()
     daily_out.index.name = "date"
-    _atomic_write_frame(CACHE / "yahoo_daily.csv", daily_out.reset_index())
+    _atomic_write_frame(cache_path, daily_out.reset_index())
+    return daily_out
+
+
+def refresh_yahoo_live_cache(as_of: pd.Timestamp) -> pd.DataFrame:
+    """Refresh recent adjusted closes for MTD marking without touching signal inputs."""
+    try:
+        import yfinance as yf
+    except ImportError as exc:
+        raise RuntimeError("yfinance is required for Macro Seasons live prices") from exc
+
+    as_of = pd.Timestamp(as_of).normalize()
+    tickers = sorted(
+        set(_v3.daily_risk_tickers())
+        | set(_v3.DAILY_PROXIES.values())
+        | set(LIVE_PRICE_TICKERS)
+    )
+    start = as_of - pd.Timedelta(days=92)
+    raw = yf.download(
+        tickers,
+        start=start.strftime("%Y-%m-%d"),
+        end=(as_of + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        group_by="column",
+        threads=True,
+    )
+    live = _extract_yahoo_closes(raw)
+    if live.empty:
+        raise RuntimeError(f"Yahoo returned no live adjusted closes through {as_of:%Y-%m-%d}")
+    live.index = live.index.normalize()
+    live = live.loc[live.index <= as_of].groupby(live.index).last().sort_index()
+    live.index.name = "date"
+    _atomic_write_frame(LIVE_DAILY_CACHE, live.reset_index())
+    return live
+
+
+def load_yahoo_live_prices() -> pd.DataFrame:
+    return _v3.load_wide_csv(LIVE_DAILY_CACHE) if LIVE_DAILY_CACHE.exists() else pd.DataFrame()
+
+
+def refresh_yahoo_caches(as_of: pd.Timestamp) -> None:
+    refresh_yahoo_daily_cache(as_of)
+
+    try:
+        import yfinance as yf
+    except ImportError as exc:
+        raise RuntimeError("yfinance is required for Macro Seasons cache refresh") from exc
 
     monthly_tickers = sorted(set(_v3.EXTENSION_ETFS) | set(_v3.EXTENSION_PROXIES.values()))
+    end = (pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     raw_monthly = yf.download(
         monthly_tickers,
         start=_v3.EXTENDED_START,
