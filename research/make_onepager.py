@@ -378,37 +378,39 @@ def historical_test_design() -> Table:
 
 
 def portfolio_comparison() -> Table:
+    body_size = 6.7
+    body_leading = 8.15
     long_only = [
         text("LONG-ONLY PORTFOLIO", 7.1, GOLD, bold=True, leading=8.2),
         Spacer(1, 3),
-        text("Weights sum to 100%. The portfolio holds long ETF positions and BIL. It has no shorts or borrowing.", 8.0, NAVY, bold=True, leading=9.7),
+        text("The portfolio is fully invested in long ETF positions and BIL. It does not use short positions or borrowing.", 7.8, NAVY, bold=True, leading=9.4),
         Spacer(1, 5),
-        text("1. <b>Season allocation.</b> Start with the fixed percentages in section 4. Divide each ETF's starting weight by its trailing 36-month volatility, rescale the result to 100%, and average it equally with the fixed allocation.", 7.0, INK, leading=8.6),
+        text("1. <b>Set each season's allocation.</b> Each season has fixed starting weights. The model also creates a risk-adjusted version by dividing each ETF's weight by its trailing 36-month volatility and rescaling the weights to 100%. The fixed and risk-adjusted versions receive equal weight.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("2. <b>Season and liquidity blend.</b> Combine all four adjusted season allocations using the Growth/Inflation season weights. The Liquidity score can move up to 15 percentage points from defensive ETFs to risk ETFs, or up to 25 points from risk to defense.", 7.0, INK, leading=8.6),
+        text("2. <b>Combine the four seasons.</b> The current Growth and Inflation readings determine how much of each season's allocation enters the portfolio. The Liquidity score can then move up to 15 percentage points from defensive assets to risk assets, or up to 25 points in the opposite direction.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("3. <b>Real yields and credit.</b> The six-month change in the 10-year Treasury yield less five-year breakeven inflation can move up to half of the available allocation between GLD and TLT/IEF. Credit stress turns on when high-yield OAS, or the earlier-history Baa yield spread proxy, exceeds 110% of its trailing 36-month median and has widened over three months; the model then halves the risk-asset allocation.", 7.0, INK, leading=8.6),
+        text("3. <b>Adjust for real yields and credit conditions.</b> The real-yield signal measures the six-month change in the 10-year Treasury yield minus five-year breakeven inflation. It can move up to half of the relevant allocation between gold and intermediate or long-term Treasuries. Credit stress is triggered when the high-yield option-adjusted spread, or the Baa spread proxy used for earlier years, is above 110% of its trailing 36-month median and wider than it was three months earlier. When this happens, the model cuts the risk-asset allocation in half.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("4. <b>Momentum and trend.</b> Rank current non-BIL holdings by return from 12 months ago to one month ago; the rank multiplier ranges from 0.75 to 1.25. Move each ETF below its 200-day moving average to BIL, using the 10-month average only when daily history is insufficient.", 7.0, INK, leading=8.6),
+        text("4. <b>Apply momentum and trend controls.</b> The model ranks non-BIL holdings by their return from 12 months ago through one month ago. Each weight is adjusted by a multiplier between 0.75 and 1.25. Any ETF trading below its 200-day moving average is moved to BIL. A 10-month moving average is used when daily history is unavailable.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("5. <b>Portfolio volatility and cost.</b> Estimate the current weight vector's volatility from the trailing 24 monthly returns. Scale can range from 0.50 to 1.00 around the 10% target; unused weight goes to BIL. Charge 10 basis points per unit of turnover.", 7.0, INK, leading=8.6),
+        text("5. <b>Control portfolio volatility and costs.</b> The model estimates portfolio volatility from the previous 24 monthly returns. Exposure can be reduced to as little as 50% when estimated volatility exceeds the 10% target. The remaining weight goes to BIL, and leverage is not permitted. The backtest charges 10 basis points per unit of turnover.", body_size, INK, leading=body_leading),
         Spacer(1, 5),
-        text("This is the funded portfolio shown in the allocation table.", 6.5, GOLD, bold=True, leading=7.6),
+        text("The allocation table on the website shows this portfolio.", 6.5, GOLD, bold=True, leading=7.6),
     ]
     long_short = [
         text("L/S PORTFOLIO", 7.1, TEAL, bold=True, leading=8.2),
         Spacer(1, 3),
-        text("The portfolio combines two macro-season streams with a 13-ETF trend stream. Duplicate and opposing positions are netted before trading and financing costs are applied.", 8.0, NAVY, bold=True, leading=9.7),
+        text("The L/S portfolio combines three components: a core Macro Seasons strategy, the full long-only strategy, and a 13-ETF trend strategy. Overlapping long and short positions are netted before trading and financing costs are calculated.", 7.8, NAVY, bold=True, leading=9.4),
         Spacer(1, 5),
-        text("1. <b>Two season streams.</b> The core stream uses the season blend and Liquidity overlay. The enhanced stream uses the complete long-only process. Each stream is separately scaled between 0.50 and 1.50 using volatility through the previous month.", 7.0, INK, leading=8.6),
+        text("1. <b>Build the two Macro Seasons components.</b> The core component uses the season blend and Liquidity adjustment. The enhanced component uses the complete long-only process described above. Each component is scaled between 50% and 150% according to volatility measured through the previous month.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("2. <b>Time-series momentum stream.</b> The 13 ETFs are SPY, QQQ, IWM, EFA, EEM, TLT, IEF, GLD, DBC, UUP, FXY, FXF and HYG. Each is long when its trailing 12-month return exceeds BIL and short otherwise.", 7.0, INK, leading=8.6),
+        text("2. <b>Set the trend positions.</b> The trend universe contains SPY, QQQ, IWM, EFA, EEM, TLT, IEF, GLD, DBC, UUP, FXY, FXF and HYG. An ETF is held long when its trailing 12-month return exceeds BIL and short when it does not.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("3. <b>Momentum sizing.</b> Use trailing 36-month volatility so a 10%-volatility ETF receives roughly one-thirteenth of the stream. Cap each position at 20% of the stream, then scale the stream between 0.50 and 1.50 toward 10% volatility.", 7.0, INK, leading=8.6),
+        text("3. <b>Size the trend positions.</b> ETFs with lower trailing 36-month volatility receive larger weights. An ETF with 10% volatility receives approximately one-thirteenth of this component. Individual positions are capped at 20%, and the overall component is scaled between 50% and 150% toward a 10% volatility target.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("4. <b>Combine streams.</b> Weight the three streams inversely to their trailing 24-month volatility, measured through the previous month. Scale the combined return stream between 0.50 and 1.50 toward 10% volatility.", 7.0, INK, leading=8.6),
+        text("4. <b>Combine the three components.</b> Components with lower trailing 24-month volatility receive larger weights. Only information available through the previous month is used. The combined portfolio is then scaled between 50% and 150% toward a 10% volatility target.", body_size, INK, leading=body_leading),
         Spacer(1, 2),
-        text("5. <b>Execution and costs.</b> Add duplicate positions, cancel opposing exposures, reduce BIL before recording a USD debit, and apply the gross, net, short, asset and borrowing limits. Charge commissions, regulatory fees, slippage, margin interest and short-position costs.", 7.0, INK, leading=8.6),
+        text("5. <b>Calculate executable positions and costs.</b> Duplicate positions are added together, while opposing long and short positions cancel each other. Available BIL is used before the portfolio records a USD borrowing balance. The final positions must remain within the gross exposure, net exposure, short exposure, individual asset and borrowing limits. Results include commissions, regulatory fees, slippage, margin interest and short-position costs.", body_size, INK, leading=body_leading),
         Spacer(1, 5),
         text("Long-only and L/S returns are reported separately.", 6.5, TEAL, bold=True, leading=7.6),
     ]
@@ -682,7 +684,9 @@ def validate_pdf() -> None:
         "Season allocations",
         "Portfolio construction",
         "LONG-ONLY PORTFOLIO",
+        "The portfolio is fully invested in long ETF positions and BIL",
         "L/S PORTFOLIO",
+        "The L/S portfolio combines three components",
         "Walk-forward research design",
         "Risk limits and trading costs",
     ]
@@ -714,6 +718,7 @@ def validate_pdf() -> None:
         "V4 ",
         "H1 through H8",
         "sleeve",
+        "stream",
         "Historical inputs",
         "Liquidity data limitation",
     ]
