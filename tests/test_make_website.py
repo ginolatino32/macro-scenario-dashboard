@@ -121,7 +121,7 @@ def test_provisional_mtd_row_updates_both_tables_without_moving_macro_signal() -
     page = build_page(data)
 
     assert "August MTD through Aug 20 close" in page
-    assert "PIT data through Jul 2026" in page
+    assert "point-in-time data through Jul 2026" in page
     long_panel = page.split("data-return-panel='long-only'", 1)[1].split("</section>", 1)[0]
     ls_panel = page.split("data-return-panel='ls'", 1)[1].split("</section>", 1)[0]
     long_2026 = long_panel.split("<tr><td>2026</td>", 1)[1].split("</tr>", 1)[0]

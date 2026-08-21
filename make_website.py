@@ -430,7 +430,7 @@ buttons.forEach(function(button){button.addEventListener('click',function(){
 <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>
 <meta http-equiv='Pragma' content='no-cache'>
 <meta http-equiv='Expires' content='0'>
-<title>New Sixty Forty | Macro Seasons v4</title>
+<title>New Sixty Forty | Macro Seasons</title>
 <meta name='description' content='Point-in-time Macro Seasons portfolios, current allocation and historical results.'>
 <style>
 :root{{--page:#0d1015;--surface:#151922;--surface2:#11151c;--line:rgba(255,255,255,.09);--ink:#f4f6f8;--text:#b8c0cb;--muted:#7f8997;--green:{ENSEMBLE_COLOR};--gold:{LONG_ONLY_COLOR};color-scheme:dark}}
@@ -454,7 +454,7 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 @media(max-width:850px){{.hero{{grid-template-columns:1fr;gap:24px}}.current{{padding-left:14px}}.tracks,.definitions,.portfolio-note,.allocation-grid,.exec-grid{{grid-template-columns:1fr}}.track{{grid-template-columns:1fr 1fr 1fr}}.track-title{{grid-column:1/-1}}.integrity{{grid-template-columns:1fr 1fr}}.exec-summary{{grid-template-columns:1fr 1fr}}.cost-grid{{grid-template-columns:1fr 1fr}}.season-row:nth-last-child(2){{border-bottom:1px solid var(--line)}}}}
 @media(max-width:520px){{main{{padding:0 16px 38px}}h1{{font-size:27px}}.track{{grid-template-columns:1fr 1fr}}.integrity,.exec-summary,.cost-grid{{grid-template-columns:1fr}}.season-row{{grid-template-columns:66px 1fr}}.season-row>div:last-child{{grid-column:2}}.allocation-row{{grid-template-columns:112px 1fr 58px}}.returns-head{{align-items:stretch;flex-direction:column}}.segmented{{width:100%}}.segmented button{{min-width:0}}}}
 </style></head><body><main>
-<nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons v4 &middot; PIT data through {as_of:%b %Y}{mtd_stamp}</div></nav>
+<nav><div class='brand'>NEW<em>SIXTY</em>FORTY</div><div class='stamp'>Macro Seasons &middot; point-in-time data through {as_of:%b %Y}{mtd_stamp}</div></nav>
 
 <div class='hero'><div><div class='eyebrow'>Current macro season</div><h1>{modal.title()}, but conviction is low.</h1>
 <p class='lede'>The point-in-time growth, inflation and liquidity readings produce a broad probability mix. The model therefore blends all four season portfolios instead of treating the modal label as a certain forecast.</p>
@@ -470,7 +470,7 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='portfolio-note'><div><h3>Long-only season portfolio</h3><p>The exact investable ETF mix shown below. It blends the four season allocations, then applies real-rate, credit, momentum, trend and volatility controls. Weights sum to 100%.</p></div>
 <div><h3>L/S portfolio</h3><p>A separate strategy: {core_weight:.1f}% levered core, {long_weight:.1f}% levered long-only and {tsmom_weight:.1f}% long/short trend sleeve, followed by a {risk_scale:.2f}x portfolio risk scale. Its physical, costed IBKR implementation is reported separately below.</p></div></div>
 <div class='integrity'><div><span>Input freshness</span><b>{audit_pass}/{audit_total} PASS</b></div><div><span>ALFRED vintages</span><b>{alfred_pass}/4 PASS</b></div></div>
-<details><summary>Data integrity</summary><p>V4 refreshes every FRED and Yahoo cache before each monthly run. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage available at each historical month-end.</p></details></section>
+<details><summary>Data integrity</summary><p>Every monthly run refreshes the required FRED and Yahoo data. CPI, industrial production, payrolls and M2 are reconstructed from the latest ALFRED vintage available at each historical month-end.</p></details></section>
 
 <section><h2>Growth of $1</h2><p class='sub'>Log scale &middot; historical point-in-time simulation after modeled trading costs</p><div class='legend'><span><i style='border-color:{ENSEMBLE_COLOR}'></i>L/S portfolio</span><span><i style='border-color:{LONG_ONLY_COLOR}'></i>Long-only season portfolio</span><span><i style='border-color:{SPY_COLOR}'></i>S&amp;P 500</span><span><i class='dash' style='border-color:{B6040_COLOR}'></i>60/40</span></div>
 <div class='chart-wrap'>{svg}<div class='tip' id='eqtip'></div></div><div class='season-key'><span><i style='background:{SEASON_COLORS['SPRING']}'></i>Spring</span><span><i style='background:{SEASON_COLORS['SUMMER']}'></i>Summer</span><span><i style='background:{SEASON_COLORS['FALL']}'></i>Fall</span><span><i style='background:{SEASON_COLORS['WINTER']}'></i>Winter</span></div>
@@ -490,7 +490,7 @@ footer{{display:flex;justify-content:space-between;gap:20px;padding:20px 0;color
 <div class='return-panel' data-return-panel='long-only'><p class='sub'>Long-only portfolio &middot; percent per month after costs &middot; average completed calendar year {long_only_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{long_only_tbody}</tbody></table></div></div>
 <div class='return-panel' data-return-panel='ls' hidden><p class='sub'>L/S portfolio after modeled IBKR costs &middot; average completed calendar year {ls_average_year:+.1f}% &middot; S&amp;P column shown for context</p><div class='table-wrap'><table><thead><tr><th>Year</th>{month_headers}<th>YTD</th><th>S&amp;P</th></tr></thead><tbody>{ls_tbody}</tbody></table></div></div></section>
 
-<footer><div>Frozen V4 rules and PIT rerun: August 20, 2026 &middot; research, not investment advice &middot; <a href='macro_seasons_v4_onepager.pdf'>method summary (PDF)</a></div><div>&copy; 2026 newsixtyforty.com</div></footer>
+<footer><div>Methodology record: August 20, 2026 &middot; research, not investment advice &middot; <a href='macro_seasons_methodology.pdf'>method summary (PDF)</a></div><div>&copy; 2026 newsixtyforty.com</div></footer>
 <script>{chart_script}{returns_script}</script>
 </main></body></html>"""
 
@@ -503,7 +503,9 @@ def main() -> None:
     output.write_text(page, encoding="utf-8")
     pdf = EXPORTS / "macro_seasons_v4_onepager.pdf"
     if pdf.exists():
-        (OUT_DIR / pdf.name).write_bytes(pdf.read_bytes())
+        pdf_bytes = pdf.read_bytes()
+        (OUT_DIR / "macro_seasons_methodology.pdf").write_bytes(pdf_bytes)
+        (OUT_DIR / pdf.name).write_bytes(pdf_bytes)
     for name in [
         "macro_seasons_v4_execution_current_positions.csv",
         "macro_seasons_v4_execution_current_tsmom.csv",
